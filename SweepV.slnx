@@ -1,0 +1,7 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/SweepV.App/SweepV.App.csproj" />
+    <Project Path="src/SweepV.Core.Tests/SweepV.Core.Tests.csproj" />
+    <Project Path="src/SweepV.Core/SweepV.Core.csproj" />
+  </Folder>
+</Solution>
