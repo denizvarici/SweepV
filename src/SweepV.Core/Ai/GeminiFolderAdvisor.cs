@@ -15,9 +15,8 @@ namespace SweepV.Core.Ai
     /// Talks to the Gemini API to explain what a folder is and whether it can be deleted.
     /// Only metadata (paths, names, sizes, dates) is sent — never file contents.
     /// </summary>
-    public sealed class GeminiFolderAdvisor(HttpClient httpClient, string apiKey, string model = GeminiFolderAdvisor.DefaultModel)
+    public sealed class GeminiFolderAdvisor(HttpClient httpClient, string apiKey, GeminiModel model, ThinkingEffort effort)
     {
-        public const string DefaultModel = "gemini-2.5-flash";
         private const int MaxChildrenInContext = 30;
 
         private static readonly JsonSerializerOptions JsonOptions = new()
@@ -54,10 +53,11 @@ namespace SweepV.Core.Ai
         {
             var request = new GenerateContentRequest(
                 SystemInstruction: new Content(null, [new Part(BuildSystemPrompt())]),
-                Contents: conversation.Select(m => new Content(m.Role == ChatRole.User ? "user" : "model", [new Part(m.Text)])).ToList());
+                Contents: conversation.Select(m => new Content(m.Role == ChatRole.User ? "user" : "model", [new Part(m.Text)])).ToList(),
+                GenerationConfig: new GenerationConfig(BuildThinkingConfig()));
 
             using var message = new HttpRequestMessage(HttpMethod.Post,
-                $"https://generativelanguage.googleapis.com/v1beta/models/{Uri.EscapeDataString(model)}:generateContent")
+                $"https://generativelanguage.googleapis.com/v1beta/models/{Uri.EscapeDataString(model.Id)}:generateContent")
             {
                 Content = JsonContent.Create(request, options: JsonOptions)
             };
@@ -77,6 +77,22 @@ namespace SweepV.Core.Ai
             return string.IsNullOrWhiteSpace(answer)
                 ? throw new GeminiException("Gemini returned an empty answer.")
                 : answer.Trim();
+        }
+
+        private ThinkingConfig BuildThinkingConfig()
+        {
+            var level = model.Efforts.Contains(effort) ? effort : model.Efforts[0];
+
+            // Gemini 3+ takes a named level; 2.5 models only understand a token budget.
+            if (!model.UsesThinkingBudget)
+                return new ThinkingConfig(ThinkingLevel: level.ToString().ToLowerInvariant(), ThinkingBudget: null);
+
+            return new ThinkingConfig(ThinkingLevel: null, ThinkingBudget: level switch
+            {
+                ThinkingEffort.Minimal or ThinkingEffort.Low => 1024,
+                ThinkingEffort.Medium => 8192,
+                _ => 24576
+            });
         }
 
         private static string BuildSystemPrompt()
@@ -128,7 +144,9 @@ namespace SweepV.Core.Ai
 
         private sealed record Part(string? Text);
         private sealed record Content(string? Role, List<Part>? Parts);
-        private sealed record GenerateContentRequest(Content SystemInstruction, List<Content> Contents);
+        private sealed record ThinkingConfig(string? ThinkingLevel, int? ThinkingBudget);
+        private sealed record GenerationConfig(ThinkingConfig ThinkingConfig);
+        private sealed record GenerateContentRequest(Content SystemInstruction, List<Content> Contents, GenerationConfig GenerationConfig);
         private sealed record Candidate(Content? Content);
         private sealed record GenerateContentResponse(List<Candidate>? Candidates);
     }

@@ -235,12 +235,25 @@
                             </DockPanel>
                         </StackPanel>
 
-                        <TextBlock Grid.Row="2" Margin="0,8,0,8" TextWrapping="Wrap" Foreground="{StaticResource Muted}" FontSize="11">
+                        <StackPanel Grid.Row="2">
+                        <Grid Margin="0,8,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <ComboBox ItemsSource="{Binding Models}" SelectedItem="{Binding SelectedModel}"
+                                      ToolTip="Gemini model" Margin="0,0,6,0"/>
+                            <ComboBox Grid.Column="1" ItemsSource="{Binding Efforts}" SelectedItem="{Binding SelectedEffort}"
+                                      ToolTip="Thinking effort" MinWidth="90"/>
+                        </Grid>
+
+                        <TextBlock Margin="0,8,0,8" TextWrapping="Wrap" Foreground="{StaticResource Muted}" FontSize="11">
                             <Run Text="Subject:"/>
                             <Run Text="{Binding SubjectPath, Mode=OneWay, TargetNullValue='select an item and press Ask AI'}" FontFamily="Consolas"/>
                             <LineBreak/>
                             <Run Text="Only names, paths and sizes are sent — never file contents."/>
                         </TextBlock>
+                        </StackPanel>
 
                         <ScrollViewer x:Name="ChatScroll" Grid.Row="3" VerticalScrollBarVisibility="Auto">
                             <StackPanel>

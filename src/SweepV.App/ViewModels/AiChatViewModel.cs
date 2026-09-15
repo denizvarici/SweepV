@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Net.Http;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -26,8 +27,44 @@ namespace SweepV.App.ViewModels
         public AiChatViewModel(SettingsStore settings)
         {
             _settings = settings;
-            _apiKey = settings.LoadApiKey() ?? string.Empty;
+            var saved = settings.Load();
+            _apiKey = saved.ApiKey ?? string.Empty;
             _isKeyEditorOpen = string.IsNullOrEmpty(_apiKey);
+            _selectedModel = GeminiModels.Find(saved.ModelId);
+            _selectedEffort = _selectedModel.Efforts.Contains(saved.Effort) ? saved.Effort : _selectedModel.Efforts[0];
+        }
+
+        public IReadOnlyList<GeminiModel> Models => GeminiModels.All;
+
+        /// <summary>Efforts supported by the selected model.</summary>
+        public IReadOnlyList<ThinkingEffort> Efforts => SelectedModel.Efforts;
+
+        [ObservableProperty]
+        private GeminiModel _selectedModel;
+
+        [ObservableProperty]
+        private ThinkingEffort _selectedEffort;
+
+        partial void OnSelectedModelChanged(GeminiModel value)
+        {
+            OnPropertyChanged(nameof(Efforts));
+            if (!value.Efforts.Contains(SelectedEffort))
+                SelectedEffort = value.Efforts.Contains(ThinkingEffort.Low) ? ThinkingEffort.Low : value.Efforts[0];
+            PersistSettings();
+        }
+
+        partial void OnSelectedEffortChanged(ThinkingEffort value) => PersistSettings();
+
+        private void PersistSettings()
+        {
+            try
+            {
+                _settings.Save(new AiSettings(ApiKey, SelectedModel.Id, SelectedEffort));
+            }
+            catch (IOException)
+            {
+                // Settings are a convenience; the current session keeps working.
+            }
         }
 
         public ObservableCollection<ChatBubble> Messages { get; } = [];
@@ -56,7 +93,7 @@ namespace SweepV.App.ViewModels
         [RelayCommand]
         private void SaveApiKey()
         {
-            _settings.SaveApiKey(ApiKey);
+            PersistSettings();
             IsKeyEditorOpen = !HasApiKey;
         }
 
@@ -102,7 +139,7 @@ namespace SweepV.App.ViewModels
             IsThinking = true;
             try
             {
-                var advisor = new GeminiFolderAdvisor(Http, ApiKey.Trim());
+                var advisor = new GeminiFolderAdvisor(Http, ApiKey.Trim(), SelectedModel, SelectedEffort);
                 var answer = await advisor.AskAsync(_history, token);
                 if (token.IsCancellationRequested)
                     return;
