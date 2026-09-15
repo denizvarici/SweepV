@@ -44,8 +44,11 @@ src/
 
 ## Contributing
 
-This project is in early stages — contribution guidelines will be added soon.
-Issues and discussions are welcome in the meantime.
+The easiest way to help is adding cleanup locations: the whole Quick Clean list is a
+single JSON file, no C# needed. See
+[Contributing cleanup locations](docs/CONTRIBUTING-CLEANUP-TARGETS.md).
+
+Issues and discussions are welcome too.
 
 ## License
 

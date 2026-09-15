@@ -3,7 +3,7 @@ using SweepV.Core.Platform;
 namespace SweepV.Core.Cleanup
 {
     /// <param name="MissingAdminRights">The target needs administrator rights the process doesn't have, so results are partial or empty.</param>
-    public readonly record struct CleanupResult(long FreedBytes, int DeletedItems, int SkippedItems, bool MissingAdminRights = false);
+    public readonly record struct CleanupResult(long FreedBytes, int DeletedItems, int SkippedItems, bool MissingAdminRights = false, string? Message = null);
 
     /// <summary>
     /// Measures and cleans <see cref="CleanupTarget"/>s. Locked or inaccessible items
@@ -18,20 +18,50 @@ namespace SweepV.Core.Cleanup
             RecurseSubdirectories = false
         };
 
-        public long Measure(CleanupTarget target, CancellationToken cancellationToken = default)
+        public long Measure(CleanupTarget target, CancellationToken cancellationToken = default) =>
+            Inspect(target, cancellationToken).Bytes;
+
+        /// <summary>Checks whether the target exists on this PC and how much it can free.</summary>
+        public TargetInspection Inspect(CleanupTarget target, CancellationToken cancellationToken = default)
         {
-            if (target.Kind == CleanupKind.RecycleBin)
-                return WindowsShell.QueryRecycleBinSize();
+            switch (target.Kind)
+            {
+                case CleanupKind.RecycleBin:
+                    return new TargetInspection(true, WindowsShell.QueryRecycleBinSize());
+
+                case CleanupKind.Command:
+                    try
+                    {
+                        return target.Inspect?.Invoke(cancellationToken) ?? TargetInspection.NotApplicable;
+                    }
+                    catch (Exception ex) when (ex is not OperationCanceledException)
+                    {
+                        return new TargetInspection(true, 0, IsExact: false, Note: "Could not check: " + ex.Message);
+                    }
+            }
+
+            var folders = ExistingFolders(target).ToList();
+            if (folders.Count == 0)
+                return TargetInspection.NotApplicable;
 
             long total = 0;
-            foreach (var folder in ExistingFolders(target))
+            var anyMatch = target.FilePattern is null;
+            foreach (var folder in folders)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                total += target.FilePattern is null
-                    ? MeasureDirectory(new DirectoryInfo(folder), cancellationToken)
-                    : MatchingFiles(folder, target.FilePattern).Sum(f => f.Length);
+                if (target.FilePattern is null)
+                {
+                    total += MeasureDirectory(new DirectoryInfo(folder), cancellationToken);
+                }
+                else
+                {
+                    var files = MatchingFiles(folder, target.FilePattern).ToList();
+                    anyMatch |= files.Count > 0;
+                    total += files.Sum(f => f.Length);
+                }
             }
-            return total;
+            // A file-pattern target (e.g. MEMORY.DMP) only exists when a matching file does.
+            return anyMatch ? new TargetInspection(true, total) : TargetInspection.NotApplicable;
         }
 
         public CleanupResult Clean(CleanupTarget target, CancellationToken cancellationToken = default)
@@ -40,6 +70,13 @@ namespace SweepV.Core.Cleanup
             {
                 var size = WindowsShell.QueryRecycleBinSize();
                 return WindowsShell.EmptyRecycleBin() ? new CleanupResult(size, 1, 0) : new CleanupResult(0, 0, 1);
+            }
+
+            if (target.Kind == CleanupKind.Command)
+            {
+                if (NeedsElevation(target))
+                    return new CleanupResult(0, 0, 1, MissingAdminRights: true);
+                return target.Execute?.Invoke(cancellationToken) ?? new CleanupResult(0, 0, 0);
             }
 
             var missingAdmin = target.RequiresAdmin && !Elevation.IsElevated;

@@ -1,0 +1,470 @@
+{
+  "$schema": "./cleanup-targets.schema.json",
+  "targets": [
+    {
+      "id": "user-temp",
+      "name": "User temporary files",
+      "description": "Temporary files left behind by apps and installers (%TEMP%). Files in use are skipped.",
+      "category": "windows",
+      "recommended": true,
+      "paths": ["%TEMP%"]
+    },
+    {
+      "id": "windows-temp",
+      "name": "Windows temporary files",
+      "description": "System-wide temporary folders (C:\\Windows\\Temp and service account temp folders).",
+      "category": "windows",
+      "recommended": true,
+      "requiresAdmin": true,
+      "paths": [
+        "%WINDIR%/Temp",
+        "%WINDIR%/ServiceProfiles/LocalService/AppData/Local/Temp",
+        "%WINDIR%/ServiceProfiles/NetworkService/AppData/Local/Temp"
+      ]
+    },
+    {
+      "id": "recycle-bin",
+      "name": "Recycle Bin",
+      "description": "Files you already deleted. Emptying it makes them unrecoverable.",
+      "category": "windows",
+      "kind": "recycleBin",
+      "recommended": true
+    },
+    {
+      "id": "windows-update",
+      "name": "Windows Update cache",
+      "description": "Downloaded update packages that are already installed. Windows re-downloads if needed.",
+      "category": "windows",
+      "recommended": true,
+      "requiresAdmin": true,
+      "paths": ["%WINDIR%/SoftwareDistribution/Download"]
+    },
+    {
+      "id": "delivery-optimization",
+      "name": "Delivery Optimization cache",
+      "description": "Update pieces cached to share with other PCs.",
+      "category": "windows",
+      "recommended": true,
+      "requiresAdmin": true,
+      "paths": ["%WINDIR%/ServiceProfiles/NetworkService/AppData/Local/Microsoft/Windows/DeliveryOptimization/Cache"]
+    },
+    {
+      "id": "installer-patch-cache",
+      "name": "Windows Installer patch cache",
+      "description": "Baseline copies of patched files ($PatchCache$). Microsoft documents it as safe to delete; some very old patches may ask for the original media when uninstalled.",
+      "category": "windows",
+      "requiresAdmin": true,
+      "paths": ["%WINDIR%/Installer/$PatchCache$"]
+    },
+    {
+      "id": "memory-dumps",
+      "name": "System memory dumps",
+      "description": "Minidumps and live kernel reports written after blue screens and driver hangs.",
+      "category": "windows",
+      "recommended": true,
+      "requiresAdmin": true,
+      "paths": ["%WINDIR%/Minidump", "%WINDIR%/LiveKernelReports"]
+    },
+    {
+      "id": "memory-dump-file",
+      "name": "Full memory dump (MEMORY.DMP)",
+      "description": "The full crash dump from the last blue screen. Can be as large as your RAM; only useful for debugging that crash.",
+      "category": "windows",
+      "recommended": true,
+      "requiresAdmin": true,
+      "paths": ["%WINDIR%"],
+      "filePattern": "MEMORY.DMP"
+    },
+    {
+      "id": "error-reports",
+      "name": "Windows error reports",
+      "description": "Crash and problem reports already sent (or queued) to Microsoft.",
+      "category": "windows",
+      "recommended": true,
+      "paths": [
+        "%PROGRAMDATA%/Microsoft/Windows/WER/ReportArchive",
+        "%PROGRAMDATA%/Microsoft/Windows/WER/ReportQueue",
+        "%LOCALAPPDATA%/Microsoft/Windows/WER/ReportArchive",
+        "%LOCALAPPDATA%/Microsoft/Windows/WER/ReportQueue"
+      ]
+    },
+    {
+      "id": "crash-dumps",
+      "name": "App crash dumps",
+      "description": "Memory dumps created when apps crash. Only useful for debugging.",
+      "category": "windows",
+      "recommended": true,
+      "paths": ["%LOCALAPPDATA%/CrashDumps"]
+    },
+    {
+      "id": "cbs-logs",
+      "name": "Windows setup & servicing logs",
+      "description": "CBS/DISM log files and their archives. These can grow to several GB on some PCs.",
+      "category": "windows",
+      "recommended": true,
+      "requiresAdmin": true,
+      "paths": ["%WINDIR%/Logs/CBS", "%WINDIR%/Logs/DISM"]
+    },
+    {
+      "id": "thumbnail-cache",
+      "name": "Thumbnail cache",
+      "description": "Explorer picture previews. Rebuilt automatically when folders are opened.",
+      "category": "windows",
+      "recommended": true,
+      "paths": ["%LOCALAPPDATA%/Microsoft/Windows/Explorer"],
+      "filePattern": "thumbcache_*.db"
+    },
+
+    {
+      "id": "windows-old",
+      "name": "Previous Windows installation (Windows.old)",
+      "description": "Left after a Windows upgrade. Removing it means you can no longer roll back to the previous version.",
+      "category": "upgradeLeftovers",
+      "risk": "caution",
+      "requiresAdmin": true,
+      "removeFolder": true,
+      "paths": ["%SYSTEMDRIVE%/Windows.old"]
+    },
+    {
+      "id": "upgrade-temp",
+      "name": "Windows upgrade temporary files",
+      "description": "$Windows.~BT, $Windows.~WS, ESD, $GetCurrent, $SysReset and $WinREAgent folders left by feature updates, resets or the Media Creation Tool. Don't clean while an upgrade is in progress.",
+      "category": "upgradeLeftovers",
+      "risk": "caution",
+      "requiresAdmin": true,
+      "removeFolder": true,
+      "paths": [
+        "%SYSTEMDRIVE%/$Windows.~BT",
+        "%SYSTEMDRIVE%/$Windows.~WS",
+        "%SYSTEMDRIVE%/ESD/Windows",
+        "%SYSTEMDRIVE%/$GetCurrent",
+        "%SYSTEMDRIVE%/$SysReset",
+        "%SYSTEMDRIVE%/$WinREAgent"
+      ]
+    },
+    {
+      "id": "msocache",
+      "name": "Old Office installation source (MSOCache)",
+      "description": "Local copy of old Office 2007–2013 setup files. Office keeps working; repairing it may ask for the installation media.",
+      "category": "upgradeLeftovers",
+      "risk": "caution",
+      "requiresAdmin": true,
+      "removeFolder": true,
+      "paths": ["%SYSTEMDRIVE%/MSOCache"]
+    },
+    {
+      "id": "gpu-driver-installers",
+      "name": "Graphics driver installer leftovers",
+      "description": "Extracted NVIDIA/AMD/Intel driver installers (C:\\NVIDIA, C:\\AMD, downloader caches). Installed drivers are not affected.",
+      "category": "upgradeLeftovers",
+      "recommended": true,
+      "requiresAdmin": true,
+      "paths": [
+        "%SYSTEMDRIVE%/NVIDIA",
+        "%SYSTEMDRIVE%/AMD",
+        "%SYSTEMDRIVE%/Intel",
+        "%PROGRAMDATA%/NVIDIA Corporation/Downloader",
+        "%PROGRAMDATA%/NVIDIA Corporation/NVIDIA App/UpdateFramework/ota-artifacts"
+      ]
+    },
+
+    {
+      "id": "browser-cache",
+      "name": "Browser caches",
+      "description": "Cached web content for Chrome, Edge, Brave, Vivaldi, Opera and Firefox. Logins, history and bookmarks are kept. Close browsers first.",
+      "category": "browsersAndApps",
+      "recommended": true,
+      "paths": [
+        "%LOCALAPPDATA%/Google/Chrome/User Data/*/Cache",
+        "%LOCALAPPDATA%/Google/Chrome/User Data/*/Code Cache",
+        "%LOCALAPPDATA%/Google/Chrome/User Data/*/GPUCache",
+        "%LOCALAPPDATA%/Microsoft/Edge/User Data/*/Cache",
+        "%LOCALAPPDATA%/Microsoft/Edge/User Data/*/Code Cache",
+        "%LOCALAPPDATA%/Microsoft/Edge/User Data/*/GPUCache",
+        "%LOCALAPPDATA%/BraveSoftware/Brave-Browser/User Data/*/Cache",
+        "%LOCALAPPDATA%/BraveSoftware/Brave-Browser/User Data/*/Code Cache",
+        "%LOCALAPPDATA%/BraveSoftware/Brave-Browser/User Data/*/GPUCache",
+        "%LOCALAPPDATA%/Vivaldi/User Data/*/Cache",
+        "%LOCALAPPDATA%/Opera Software/Opera Stable/Cache",
+        "%LOCALAPPDATA%/Opera Software/Opera GX Stable/Cache",
+        "%LOCALAPPDATA%/Mozilla/Firefox/Profiles/*/cache2"
+      ]
+    },
+    {
+      "id": "browser-service-workers",
+      "name": "Website offline storage (Service Worker cache)",
+      "description": "Offline copies saved by websites and web apps. Often several GB; sites simply re-download what they need.",
+      "category": "browsersAndApps",
+      "paths": [
+        "%LOCALAPPDATA%/Google/Chrome/User Data/*/Service Worker/CacheStorage",
+        "%LOCALAPPDATA%/Microsoft/Edge/User Data/*/Service Worker/CacheStorage",
+        "%LOCALAPPDATA%/BraveSoftware/Brave-Browser/User Data/*/Service Worker/CacheStorage",
+        "%LOCALAPPDATA%/Vivaldi/User Data/*/Service Worker/CacheStorage"
+      ]
+    },
+    {
+      "id": "chat-app-cache",
+      "name": "Chat & collaboration app caches",
+      "description": "Discord, Slack and Microsoft Teams caches. Messages stay on the server; close the apps first.",
+      "category": "browsersAndApps",
+      "recommended": true,
+      "paths": [
+        "%APPDATA%/discord/Cache",
+        "%APPDATA%/discord/Code Cache",
+        "%APPDATA%/discord/GPUCache",
+        "%APPDATA%/Slack/Cache",
+        "%APPDATA%/Slack/Code Cache",
+        "%APPDATA%/Slack/GPUCache",
+        "%APPDATA%/Slack/Service Worker/CacheStorage",
+        "%APPDATA%/Microsoft/Teams/Cache",
+        "%APPDATA%/Microsoft/Teams/Code Cache",
+        "%APPDATA%/Microsoft/Teams/GPUCache",
+        "%APPDATA%/Microsoft/Teams/Service Worker/CacheStorage",
+        "%LOCALAPPDATA%/Packages/MSTeams_8wekyb3d8bbwe/LocalCache/Microsoft/MSTeams/EBWebView/Default/Cache",
+        "%LOCALAPPDATA%/Packages/MSTeams_8wekyb3d8bbwe/LocalCache/Microsoft/MSTeams/EBWebView/Default/Code Cache",
+        "%LOCALAPPDATA%/Packages/MSTeams_8wekyb3d8bbwe/LocalCache/Microsoft/MSTeams/EBWebView/Default/Service Worker/CacheStorage"
+      ]
+    },
+    {
+      "id": "telegram-cache",
+      "name": "Telegram Desktop media cache",
+      "description": "Photos, videos and files Telegram cached while you scrolled chats (often many GB). They re-download from Telegram when opened. Close Telegram first.",
+      "category": "browsersAndApps",
+      "recommended": true,
+      "paths": ["%APPDATA%/Telegram Desktop/tdata/user_data"]
+    },
+    {
+      "id": "spotify-cache",
+      "name": "Spotify cache",
+      "description": "Streamed songs cached by Spotify (can reach 10 GB). Downloaded playlists for offline listening may need to be re-downloaded.",
+      "category": "browsersAndApps",
+      "paths": [
+        "%LOCALAPPDATA%/Spotify/Storage",
+        "%LOCALAPPDATA%/Spotify/Data",
+        "%LOCALAPPDATA%/Packages/SpotifyAB.SpotifyMusic_*/LocalCache/Spotify/Data"
+      ]
+    },
+    {
+      "id": "apple-updates",
+      "name": "iPhone / iPad software update files",
+      "description": "iOS firmware files (.ipsw, 5–8 GB each) downloaded by iTunes or Apple Devices. Downloaded again if you update through the PC.",
+      "category": "browsersAndApps",
+      "recommended": true,
+      "paths": [
+        "%APPDATA%/Apple Computer/iTunes/iPhone Software Updates",
+        "%APPDATA%/Apple Computer/iTunes/iPad Software Updates",
+        "%LOCALAPPDATA%/Apple Computer/iTunes/iPhone Software Updates"
+      ]
+    },
+    {
+      "id": "office-cache",
+      "name": "Microsoft Office document cache",
+      "description": "Office's upload/sync cache for OneDrive and SharePoint files. Close Office apps first; unsynced changes should be saved beforehand.",
+      "category": "browsersAndApps",
+      "paths": ["%LOCALAPPDATA%/Microsoft/Office/16.0/OfficeFileCache"]
+    },
+    {
+      "id": "adobe-media-cache",
+      "name": "Adobe media cache",
+      "description": "Premiere Pro / After Effects media cache files. Rebuilt when projects are reopened (the first open is slower).",
+      "category": "browsersAndApps",
+      "recommended": true,
+      "paths": [
+        "%APPDATA%/Adobe/Common/Media Cache Files",
+        "%APPDATA%/Adobe/Common/Media Cache"
+      ]
+    },
+    {
+      "id": "vscode-cache",
+      "name": "VS Code caches",
+      "description": "Visual Studio Code web caches and downloaded extension installers. Settings and extensions are kept.",
+      "category": "browsersAndApps",
+      "recommended": true,
+      "paths": [
+        "%APPDATA%/Code/Cache",
+        "%APPDATA%/Code/Code Cache",
+        "%APPDATA%/Code/GPUCache",
+        "%APPDATA%/Code/CachedData",
+        "%APPDATA%/Code/CachedExtensionVSIXs"
+      ]
+    },
+
+    {
+      "id": "shader-cache",
+      "name": "GPU shader caches",
+      "description": "DirectX / NVIDIA / AMD / Intel shader caches. Games may stutter briefly while rebuilding.",
+      "category": "gaming",
+      "recommended": true,
+      "paths": [
+        "%LOCALAPPDATA%/D3DSCache",
+        "%LOCALAPPDATA%/NVIDIA/DXCache",
+        "%LOCALAPPDATA%/NVIDIA/GLCache",
+        "%LOCALAPPDATA%/AMD/DxCache",
+        "%LOCALAPPDATA%/AMD/DxcCache",
+        "%LOCALAPPDATA%/AMD/VkCache",
+        "%LOCALAPPDATA%/Intel/ShaderCache",
+        "%PROGRAMDATA%/NVIDIA Corporation/NV_Cache"
+      ]
+    },
+    {
+      "id": "steam-cache",
+      "name": "Steam caches",
+      "description": "Steam's downloaded shader pre-caches, web browser cache and leftover update files. Games and saves are not touched. Close Steam first.",
+      "category": "gaming",
+      "recommended": true,
+      "paths": [
+        "%STEAM%/steamapps/shadercache",
+        "%STEAM%/steamapps/temp",
+        "%STEAM%/appcache",
+        "%STEAM%/depotcache",
+        "%STEAM%/logs",
+        "%STEAM%/dumps",
+        "%LOCALAPPDATA%/Steam/htmlcache"
+      ]
+    },
+    {
+      "id": "launcher-cache",
+      "name": "Game launcher caches",
+      "description": "Epic Games, EA app, Ubisoft Connect, Battle.net and GOG Galaxy web caches and logs.",
+      "category": "gaming",
+      "recommended": true,
+      "paths": [
+        "%LOCALAPPDATA%/EpicGamesLauncher/Saved/webcache*",
+        "%LOCALAPPDATA%/EpicGamesLauncher/Saved/Logs",
+        "%LOCALAPPDATA%/Electronic Arts/EA Desktop/CEF/BrowserCache",
+        "%LOCALAPPDATA%/Ubisoft Game Launcher/cache",
+        "%LOCALAPPDATA%/Battle.net/BrowserCaches",
+        "%PROGRAMDATA%/Battle.net/Setup",
+        "%PROGRAMDATA%/GOG.com/Galaxy/webcache"
+      ]
+    },
+    {
+      "id": "game-engine-cache",
+      "name": "Unreal Engine / Unity caches",
+      "description": "Derived data and asset caches for game development. Rebuilt automatically; the next project open is slower.",
+      "category": "gaming",
+      "recommended": true,
+      "paths": [
+        "%LOCALAPPDATA%/UnrealEngine/Common/DerivedDataCache",
+        "%LOCALAPPDATA%/Unity/cache",
+        "%LOCALAPPDATA%/Unity/Caches"
+      ]
+    },
+
+    {
+      "id": "js-package-cache",
+      "name": "npm / Yarn / Bun / Deno caches",
+      "description": "Downloaded JavaScript packages. Projects keep working; packages are re-downloaded on the next install.",
+      "category": "developer",
+      "recommended": true,
+      "paths": [
+        "%LOCALAPPDATA%/npm-cache",
+        "%APPDATA%/npm-cache",
+        "%LOCALAPPDATA%/Yarn/Cache",
+        "%LOCALAPPDATA%/Yarn/Berry/cache",
+        "%USERPROFILE%/.bun/install/cache",
+        "%LOCALAPPDATA%/deno"
+      ]
+    },
+    {
+      "id": "nuget-http-cache",
+      "name": "NuGet download caches",
+      "description": "NuGet HTTP and plugin caches (not the global packages folder).",
+      "category": "developer",
+      "recommended": true,
+      "paths": ["%LOCALAPPDATA%/NuGet/v3-cache", "%LOCALAPPDATA%/NuGet/plugins-cache"]
+    },
+    {
+      "id": "nuget-packages",
+      "name": "NuGet global packages",
+      "description": "All restored .NET packages (%USERPROFILE%\\.nuget\\packages). Often many GB; restored again on the next build, which needs internet.",
+      "category": "developer",
+      "risk": "caution",
+      "paths": ["%USERPROFILE%/.nuget/packages"]
+    },
+    {
+      "id": "python-cache",
+      "name": "pip / uv / Poetry caches",
+      "description": "Downloaded Python wheels and packages. Existing environments keep working.",
+      "category": "developer",
+      "recommended": true,
+      "paths": ["%LOCALAPPDATA%/pip/Cache", "%LOCALAPPDATA%/uv/cache", "%LOCALAPPDATA%/pypoetry/Cache"]
+    },
+    {
+      "id": "jetbrains-cache",
+      "name": "JetBrains IDE caches",
+      "description": "Index and system caches for IntelliJ, Rider, PyCharm, WebStorm, Android Studio... Rebuilt on next start (first indexing is slower).",
+      "category": "developer",
+      "recommended": true,
+      "paths": ["%LOCALAPPDATA%/JetBrains/*/caches", "%LOCALAPPDATA%/Google/AndroidStudio*/caches"]
+    },
+    {
+      "id": "package-manager-cache",
+      "name": "Scoop / Chocolatey download caches",
+      "description": "Installer files kept after apps were installed with Scoop or Chocolatey. Installed apps are not affected.",
+      "category": "developer",
+      "recommended": true,
+      "paths": ["%USERPROFILE%/scoop/cache", "%PROGRAMDATA%/scoop/cache", "%PROGRAMDATA%/chocolatey/lib-bkp"]
+    },
+    {
+      "id": "build-tool-cache",
+      "name": "Gradle / Maven / Go / Cargo caches",
+      "description": "Build and dependency caches for Java/Android, Go and Rust. Rebuilt or re-downloaded on the next build.",
+      "category": "developer",
+      "risk": "caution",
+      "paths": [
+        "%USERPROFILE%/.gradle/caches",
+        "%USERPROFILE%/.m2/repository",
+        "%LOCALAPPDATA%/go-build",
+        "%USERPROFILE%/.cargo/registry/cache"
+      ]
+    },
+    {
+      "id": "ai-model-cache",
+      "name": "AI model caches (Hugging Face / PyTorch)",
+      "description": "Downloaded machine-learning models, often 5–50 GB. Scripts download them again when needed, which can take a long time.",
+      "category": "developer",
+      "risk": "caution",
+      "paths": ["%USERPROFILE%/.cache/huggingface", "%USERPROFILE%/.cache/torch"]
+    },
+    {
+      "id": "conda-pkgs",
+      "name": "Conda package cache",
+      "description": "Downloaded package archives for Anaconda / Miniconda. Environments keep working; same as 'conda clean --all'.",
+      "category": "developer",
+      "risk": "caution",
+      "paths": [
+        "%USERPROFILE%/anaconda3/pkgs",
+        "%USERPROFILE%/miniconda3/pkgs",
+        "%USERPROFILE%/.conda/pkgs",
+        "%PROGRAMDATA%/anaconda3/pkgs",
+        "%PROGRAMDATA%/miniconda3/pkgs"
+      ]
+    },
+    {
+      "id": "android-emulator",
+      "name": "Android emulator system images",
+      "description": "Android SDK system images (1–3 GB each). Emulators using them stop working until you re-download them in Android Studio.",
+      "category": "developer",
+      "risk": "caution",
+      "paths": ["%LOCALAPPDATA%/Android/Sdk/system-images"]
+    },
+
+    {
+      "id": "downloads",
+      "name": "Downloads folder",
+      "description": "Everything in your Downloads folder. May contain personal files — review before cleaning.",
+      "category": "personal",
+      "risk": "caution",
+      "paths": ["%USERPROFILE%/Downloads"]
+    },
+    {
+      "id": "apple-backups",
+      "name": "iPhone / iPad backups",
+      "description": "Local device backups made by iTunes or Apple Devices. Often tens of GB. Deleting them removes your only copy unless you also back up to iCloud.",
+      "category": "personal",
+      "risk": "caution",
+      "paths": ["%APPDATA%/Apple Computer/MobileSync/Backup", "%USERPROFILE%/Apple/MobileSync/Backup"]
+    }
+  ]
+}

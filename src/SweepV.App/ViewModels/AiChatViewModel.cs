@@ -30,6 +30,7 @@ namespace SweepV.App.ViewModels
             var saved = settings.Load();
             _apiKey = saved.ApiKey ?? string.Empty;
             _isKeyEditorOpen = string.IsNullOrEmpty(_apiKey);
+            Messages.CollectionChanged += (_, _) => ClearChatCommand.NotifyCanExecuteChanged();
             _selectedModel = GeminiModels.Find(saved.ModelId);
             _selectedEffort = _selectedModel.Efforts.Contains(saved.Effort) ? saved.Effort : _selectedModel.Efforts[0];
         }
@@ -70,6 +71,7 @@ namespace SweepV.App.ViewModels
         public ObservableCollection<ChatBubble> Messages { get; } = [];
 
         [ObservableProperty]
+        [NotifyCanExecuteChangedFor(nameof(SendCommand), nameof(ClearChatCommand))]
         private string? _subjectPath;
 
         [ObservableProperty]
@@ -99,6 +101,20 @@ namespace SweepV.App.ViewModels
 
         [RelayCommand]
         private void ToggleKeyEditor() => IsKeyEditorOpen = !IsKeyEditorOpen;
+
+        private bool CanClear() => Messages.Count > 0 || SubjectPath is not null;
+
+        /// <summary>Drops the conversation (and any pending answer) so the next question starts fresh.</summary>
+        [RelayCommand(CanExecute = nameof(CanClear))]
+        private void ClearChat()
+        {
+            _cts?.Cancel();
+            _history.Clear();
+            Messages.Clear();
+            SubjectPath = null;
+            Draft = string.Empty;
+            IsThinking = false;
+        }
 
         /// <summary>Starts a new conversation about <paramref name="node"/>.</summary>
         public async Task StartAsync(ScanNode node)

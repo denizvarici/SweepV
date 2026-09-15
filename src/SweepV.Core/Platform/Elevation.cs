@@ -1,5 +1,3 @@
-using System.Diagnostics;
-
 namespace SweepV.Core.Platform
 {
     /// <summary>
@@ -19,42 +17,10 @@ namespace SweepV.Core.Platform
             if (!IsElevated || !Directory.Exists(path))
                 return false;
 
-            var system = Environment.GetFolderPath(Environment.SpecialFolder.System);
             // *S-1-5-32-544 is the language-independent SID of the Administrators group.
-            var owned = Run(Path.Combine(system, "takeown.exe"), ["/F", path, "/R", "/A", "/D", "Y"], cancellationToken);
-            var granted = Run(Path.Combine(system, "icacls.exe"), [path, "/grant", "*S-1-5-32-544:F", "/T", "/C", "/Q"], cancellationToken);
-            return owned && granted;
-        }
-
-        private static bool Run(string exe, string[] args, CancellationToken cancellationToken)
-        {
-            var info = new ProcessStartInfo(exe)
-            {
-                CreateNoWindow = true,
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true
-            };
-            foreach (var arg in args)
-                info.ArgumentList.Add(arg);
-
-            using var process = Process.Start(info);
-            if (process is null)
-                return false;
-
-            // Drain output so the child can't block on a full pipe.
-            _ = process.StandardOutput.ReadToEndAsync(cancellationToken);
-            _ = process.StandardError.ReadToEndAsync(cancellationToken);
-            try
-            {
-                process.WaitForExitAsync(cancellationToken).GetAwaiter().GetResult();
-            }
-            catch (OperationCanceledException)
-            {
-                process.Kill(entireProcessTree: true);
-                throw;
-            }
-            return process.ExitCode == 0;
+            var owned = ProcessRunner.Run(ProcessRunner.SystemTool("takeown.exe"), ["/F", path, "/R", "/A", "/D", "Y"], cancellationToken);
+            var granted = ProcessRunner.Run(ProcessRunner.SystemTool("icacls.exe"), [path, "/grant", "*S-1-5-32-544:F", "/T", "/C", "/Q"], cancellationToken);
+            return owned.Succeeded && granted.Succeeded;
         }
     }
 }

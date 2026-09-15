@@ -6,4 +6,10 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <!-- Community-editable list of cleanup locations; see docs/CONTRIBUTING-CLEANUP-TARGETS.md -->
+    <EmbeddedResource Include="Cleanup\cleanup-targets.json" LogicalName="SweepV.Core.Cleanup.cleanup-targets.json" />
+    <None Include="Cleanup\cleanup-targets.schema.json" />
+  </ItemGroup>
+
 </Project>

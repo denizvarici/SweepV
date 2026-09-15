@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SweepV cleanup targets",
+  "type": "object",
+  "required": ["targets"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "targets": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/target" }
+    }
+  },
+  "$defs": {
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "description", "category"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]+$",
+          "description": "Unique, lowercase-kebab-case identifier."
+        },
+        "name": { "type": "string", "description": "Short title shown in the list." },
+        "description": {
+          "type": "string",
+          "description": "Plain-language explanation for non-technical users: what it is and what happens if it is cleaned."
+        },
+        "category": {
+          "enum": ["windows", "upgradeLeftovers", "browsersAndApps", "gaming", "developer", "personal"]
+        },
+        "kind": {
+          "enum": ["folderContents", "recycleBin"],
+          "default": "folderContents"
+        },
+        "risk": {
+          "enum": ["safe", "caution"],
+          "default": "safe",
+          "description": "caution = safe for Windows but may remove something the user wants to keep."
+        },
+        "recommended": { "type": "boolean", "default": false },
+        "requiresAdmin": { "type": "boolean", "default": false },
+        "removeFolder": {
+          "type": "boolean",
+          "default": false,
+          "description": "Take ownership and delete the folders themselves (for leftovers like Windows.old). Requires admin."
+        },
+        "filePattern": {
+          "type": "string",
+          "description": "Only delete files matching this pattern directly inside the folders, e.g. thumbcache_*.db."
+        },
+        "paths": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "pattern": "^%(WINDIR|SYSTEMDRIVE|TEMP|LOCALAPPDATA|APPDATA|PROGRAMDATA|USERPROFILE|PROGRAMFILES|PROGRAMFILES\\(X86\\)|STEAM)%",
+            "description": "Folder whose CONTENTS are cleaned. Starts with a token; '*' matches folder names (e.g. browser profiles)."
+          }
+        }
+      }
+    }
+  }
+}

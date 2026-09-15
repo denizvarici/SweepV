@@ -1,170 +1,180 @@
+using System.Reflection;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using Microsoft.Win32;
+
 namespace SweepV.Core.Cleanup
 {
     /// <summary>
-    /// The built-in list of known cleanup locations.
+    /// The list of cleanup locations. Folder-based targets come from <c>cleanup-targets.json</c>
+    /// (community-editable, embedded into the app); command-based ones from <see cref="SystemActions"/>.
     /// </summary>
     public static class CleanupCatalog
     {
+        private const string ResourceName = "SweepV.Core.Cleanup.cleanup-targets.json";
+
+        private static readonly JsonSerializerOptions JsonOptions = new()
+        {
+            PropertyNameCaseInsensitive = true,
+            ReadCommentHandling = JsonCommentHandling.Skip,
+            AllowTrailingCommas = true,
+            Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) }
+        };
+
+        private static readonly Dictionary<string, string> CategoryNames = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["windows"] = CleanupCategories.Windows,
+            ["upgradeLeftovers"] = CleanupCategories.UpgradeLeftovers,
+            ["browsersAndApps"] = CleanupCategories.BrowsersAndApps,
+            ["gaming"] = CleanupCategories.Gaming,
+            ["developer"] = CleanupCategories.Developer,
+            ["personal"] = CleanupCategories.Personal
+        };
+
         public static IReadOnlyList<CleanupTarget> CreateDefault()
         {
-            var windows = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
-            var local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            var programData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
-            var profile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-            var systemDrive = Path.GetPathRoot(windows) ?? @"C:\";
+            using var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(ResourceName)
+                ?? throw new InvalidOperationException($"Embedded resource {ResourceName} is missing.");
+            var file = Load(stream);
 
+            // Invalid entries are skipped rather than crashing the app; the unit tests keep the shipped file clean.
             return
             [
-                new CleanupTarget
-                {
-                    Id = "user-temp",
-                    Name = "User temporary files",
-                    Description = "Temporary files left behind by apps and installers (%TEMP%). Files in use are skipped.",
-                    IsRecommended = true,
-                    ResolveFolders = () => [Path.GetTempPath()]
-                },
-                new CleanupTarget
-                {
-                    Id = "windows-temp",
-                    Name = "Windows temporary files",
-                    Description = "System-wide temporary folder (C:\\Windows\\Temp).",
-                    IsRecommended = true,
-                    RequiresAdmin = true,
-                    ResolveFolders = () => [Path.Combine(windows, "Temp")]
-                },
-                new CleanupTarget
-                {
-                    Id = "recycle-bin",
-                    Name = "Recycle Bin",
-                    Description = "Files you already deleted. Emptying it makes them unrecoverable.",
-                    Kind = CleanupKind.RecycleBin,
-                    IsRecommended = true
-                },
-                new CleanupTarget
-                {
-                    Id = "windows-update",
-                    Name = "Windows Update cache",
-                    Description = "Downloaded update packages that are already installed. Windows re-downloads if needed.",
-                    IsRecommended = true,
-                    RequiresAdmin = true,
-                    ResolveFolders = () => [Path.Combine(windows, "SoftwareDistribution", "Download")]
-                },
-                new CleanupTarget
-                {
-                    Id = "delivery-optimization",
-                    Name = "Delivery Optimization cache",
-                    Description = "Update pieces cached to share with other PCs.",
-                    IsRecommended = true,
-                    RequiresAdmin = true,
-                    ResolveFolders = () => [Path.Combine(windows, @"ServiceProfiles\NetworkService\AppData\Local\Microsoft\Windows\DeliveryOptimization\Cache")]
-                },
-                new CleanupTarget
-                {
-                    Id = "error-reports",
-                    Name = "Windows error reports",
-                    Description = "Crash and problem reports already sent (or queued) to Microsoft.",
-                    IsRecommended = true,
-                    ResolveFolders = () =>
-                    [
-                        Path.Combine(programData, @"Microsoft\Windows\WER\ReportArchive"),
-                        Path.Combine(programData, @"Microsoft\Windows\WER\ReportQueue"),
-                        Path.Combine(local, @"Microsoft\Windows\WER\ReportArchive"),
-                        Path.Combine(local, @"Microsoft\Windows\WER\ReportQueue")
-                    ]
-                },
-                new CleanupTarget
-                {
-                    Id = "crash-dumps",
-                    Name = "Crash dumps",
-                    Description = "Memory dumps created when apps crash. Only useful for debugging.",
-                    IsRecommended = true,
-                    ResolveFolders = () => [Path.Combine(local, "CrashDumps")]
-                },
-                new CleanupTarget
-                {
-                    Id = "thumbnail-cache",
-                    Name = "Thumbnail cache",
-                    Description = "Explorer picture previews. Rebuilt automatically when folders are opened.",
-                    IsRecommended = true,
-                    ResolveFolders = () => [Path.Combine(local, @"Microsoft\Windows\Explorer")],
-                    FilePattern = "thumbcache_*.db"
-                },
-                new CleanupTarget
-                {
-                    Id = "shader-cache",
-                    Name = "GPU shader caches",
-                    Description = "DirectX / NVIDIA / AMD shader caches. Games may stutter briefly while rebuilding.",
-                    IsRecommended = true,
-                    ResolveFolders = () =>
-                    [
-                        Path.Combine(local, "D3DSCache"),
-                        Path.Combine(local, @"NVIDIA\DXCache"),
-                        Path.Combine(local, @"NVIDIA\GLCache"),
-                        Path.Combine(local, @"AMD\DxCache")
-                    ]
-                },
-                new CleanupTarget
-                {
-                    Id = "browser-cache",
-                    Name = "Browser caches",
-                    Description = "Cached web content for Chrome, Edge, Brave and Firefox. Logins and history are kept. Close browsers first.",
-                    IsRecommended = true,
-                    ResolveFolders = () => ResolveBrowserCaches(local)
-                },
-                new CleanupTarget
-                {
-                    Id = "downloads",
-                    Name = "Downloads folder",
-                    Description = "Everything in your Downloads folder. May contain personal files — review before cleaning.",
-                    Risk = CleanupRisk.Caution,
-                    ResolveFolders = () => [Path.Combine(profile, "Downloads")]
-                },
-                new CleanupTarget
-                {
-                    Id = "windows-old",
-                    Name = "Previous Windows installation (Windows.old)",
-                    Description = "Left after a Windows upgrade. Removing it means you can no longer roll back to the previous version.",
-                    Risk = CleanupRisk.Caution,
-                    RequiresAdmin = true,
-                    RemoveFolderWithOwnership = true,
-                    ResolveFolders = () => [Path.Combine(systemDrive, "Windows.old")]
-                }
+                .. file.Targets.Where(d => Validate(d).Count == 0).Select(ToTarget),
+                .. SystemActions.Create()
             ];
         }
 
-        private static IEnumerable<string> ResolveBrowserCaches(string local)
+        public static CatalogFile Load(Stream json) =>
+            JsonSerializer.Deserialize<CatalogFile>(json, JsonOptions) ?? new CatalogFile([]);
+
+        /// <summary>Returns the problems with a definition; empty when it's valid.</summary>
+        public static List<string> Validate(TargetDefinition definition)
         {
-            string[] chromiumUserData =
-            [
-                Path.Combine(local, @"Google\Chrome\User Data"),
-                Path.Combine(local, @"Microsoft\Edge\User Data"),
-                Path.Combine(local, @"BraveSoftware\Brave-Browser\User Data")
-            ];
+            var errors = new List<string>();
+            var label = string.IsNullOrWhiteSpace(definition.Id) ? "(no id)" : definition.Id;
 
-            foreach (var userData in chromiumUserData.Where(Directory.Exists))
+            if (string.IsNullOrWhiteSpace(definition.Id) || !definition.Id.All(c => char.IsAsciiLetterLower(c) || char.IsAsciiDigit(c) || c == '-'))
+                errors.Add($"{label}: id must be lowercase-kebab-case.");
+            if (string.IsNullOrWhiteSpace(definition.Name))
+                errors.Add($"{label}: name is required.");
+            if (string.IsNullOrWhiteSpace(definition.Description))
+                errors.Add($"{label}: description is required.");
+            if (!CategoryNames.ContainsKey(definition.Category ?? string.Empty))
+                errors.Add($"{label}: unknown category '{definition.Category}'. Use one of: {string.Join(", ", CategoryNames.Keys)}.");
+
+            if (definition.Kind == DefinitionKind.RecycleBin)
+                return errors;
+
+            if (definition.Paths is not { Count: > 0 })
+                errors.Add($"{label}: at least one path is required.");
+
+            foreach (var path in definition.Paths ?? [])
             {
-                foreach (var profileDir in SafeDirectories(userData))
-                {
-                    yield return Path.Combine(profileDir, "Cache");
-                    yield return Path.Combine(profileDir, "Code Cache");
-                    yield return Path.Combine(profileDir, "GPUCache");
-                }
+                var normalized = path.Replace('/', '\\').TrimEnd('\\');
+                var segments = normalized.Split('\\');
+                if (!segments[0].StartsWith('%') || !segments[0].EndsWith('%') || !Tokens.ContainsKey(segments[0]))
+                    errors.Add($"{label}: '{path}' must start with a known token ({string.Join(", ", Tokens.Keys)}).");
+                if (segments.Any(s => s is ".." or "."))
+                    errors.Add($"{label}: '{path}' must not contain '.' or '..'.");
+                if (segments.Skip(1).Any(s => s.Contains('%')))
+                    errors.Add($"{label}: '{path}' may only use a token at the start.");
+                // Cleaning a whole root (e.g. all of %USERPROFILE%) is never right; a file pattern narrows it enough.
+                if (segments.Length < 2 && definition.FilePattern is null && segments[0] != "%TEMP%")
+                    errors.Add($"{label}: '{path}' points at a whole root folder; add a sub-folder.");
+                if (segments.Length >= 2 && segments[1] == "*" && segments.Length == 2)
+                    errors.Add($"{label}: '{path}' would clean every folder in a root.");
             }
-
-            foreach (var profileDir in SafeDirectories(Path.Combine(local, @"Mozilla\Firefox\Profiles")))
-                yield return Path.Combine(profileDir, "cache2");
+            return errors;
         }
 
-        private static IEnumerable<string> SafeDirectories(string path)
+        private static CleanupTarget ToTarget(TargetDefinition d) => new()
+        {
+            Id = d.Id,
+            Name = d.Name,
+            Description = d.Description,
+            Category = CategoryNames[d.Category!],
+            Kind = d.Kind == DefinitionKind.RecycleBin ? CleanupKind.RecycleBin : CleanupKind.FolderContents,
+            Risk = d.Risk,
+            IsRecommended = d.Recommended,
+            RequiresAdmin = d.RequiresAdmin,
+            RemoveFolderWithOwnership = d.RemoveFolder,
+            FilePattern = d.FilePattern,
+            ResolveFolders = () => (d.Paths ?? []).SelectMany(ExpandPath)
+        };
+
+        // ------------------------------------------------------------ path expansion
+
+        private static readonly Dictionary<string, Func<string?>> Tokens = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["%WINDIR%"] = () => Environment.GetFolderPath(Environment.SpecialFolder.Windows),
+            ["%SYSTEMDRIVE%"] = () => Path.GetPathRoot(Environment.GetFolderPath(Environment.SpecialFolder.Windows)),
+            ["%TEMP%"] = Path.GetTempPath,
+            ["%LOCALAPPDATA%"] = () => Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            ["%APPDATA%"] = () => Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            ["%PROGRAMDATA%"] = () => Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+            ["%USERPROFILE%"] = () => Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            ["%PROGRAMFILES%"] = () => Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
+            ["%PROGRAMFILES(X86)%"] = () => Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
+            ["%STEAM%"] = ResolveSteam
+        };
+
+        /// <summary>Expands the leading token and any <c>*</c> wildcards in folder names.</summary>
+        public static IEnumerable<string> ExpandPath(string path)
+        {
+            var segments = path.Replace('/', '\\').TrimEnd('\\').Split('\\');
+            if (!Tokens.TryGetValue(segments[0], out var resolve) || resolve() is not { Length: > 0 } root)
+                return [];
+
+            IEnumerable<string> current = [root];
+            foreach (var segment in segments.Skip(1))
+            {
+                current = segment.Contains('*') || segment.Contains('?')
+                    ? current.SelectMany(dir => SafeDirectories(dir, segment))
+                    : current.Select(dir => Path.Combine(dir, segment));
+            }
+            return current;
+        }
+
+        private static string? ResolveSteam()
+        {
+            if (OperatingSystem.IsWindows() &&
+                Registry.GetValue(@"HKEY_CURRENT_USER\Software\Valve\Steam", "SteamPath", null) is string registered &&
+                Directory.Exists(registered))
+                return Path.GetFullPath(registered);
+            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Steam");
+        }
+
+        private static IEnumerable<string> SafeDirectories(string path, string pattern)
         {
             try
             {
-                return Directory.Exists(path) ? Directory.GetDirectories(path) : [];
+                return Directory.Exists(path) ? Directory.GetDirectories(path, pattern) : [];
             }
             catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
             {
                 return [];
             }
         }
+    }
+
+    public enum DefinitionKind { FolderContents, RecycleBin }
+
+    public sealed record CatalogFile(List<TargetDefinition> Targets);
+
+    /// <summary>One entry of cleanup-targets.json.</summary>
+    public sealed record TargetDefinition
+    {
+        public string Id { get; init; } = string.Empty;
+        public string Name { get; init; } = string.Empty;
+        public string Description { get; init; } = string.Empty;
+        public string? Category { get; init; }
+        public DefinitionKind Kind { get; init; } = DefinitionKind.FolderContents;
+        public CleanupRisk Risk { get; init; } = CleanupRisk.Safe;
+        public bool Recommended { get; init; }
+        public bool RequiresAdmin { get; init; }
+        public bool RemoveFolder { get; init; }
+        public string? FilePattern { get; init; }
+        public List<string>? Paths { get; init; }
     }
 }
