@@ -14,7 +14,7 @@ namespace SweepV.App.ViewModels
 {
     public partial class MainViewModel : ObservableObject
     {
-        private readonly IDiskScanner _scanner = new SimpleDiskScanner();
+        private readonly SmartDiskScanner _scanner = new();
         private readonly Stack<ScanNode> _navigationHistory = new();
         private CancellationTokenSource? _scanCts;
 
@@ -82,8 +82,14 @@ namespace SweepV.App.ViewModels
 
             IsScanning = true;
             _scanCts = new CancellationTokenSource();
+
+            // Release the previous tree before building a new one so peak memory isn't doubled.
             _navigationHistory.Clear();
             OnPropertyChanged(nameof(CanGoBack));
+            SelectedNode = null;
+            CurrentNode = null;
+            RootNode = null;
+            GC.Collect();
             StatusMessage = "Scanning...";
 
             var progress = new Progress<ScanProgress>(p =>
@@ -95,7 +101,12 @@ namespace SweepV.App.ViewModels
                 var token = _scanCts.Token;
                 RootNode = await Task.Run(() => _scanner.ScanDirectory(path, progress, token), token);
                 CurrentNode = RootNode;
-                StatusMessage = $"Done in {stopwatch.Elapsed.TotalSeconds:F1}s. {GeminiFolderAdvisor.FormatBytes(RootNode.SizeInBytes)} in {RootNode.FileCount:N0} files. Double-click a folder to open it.";
+                var elapsed = stopwatch.Elapsed.TotalSeconds;
+                GC.Collect();
+                var memory = GeminiFolderAdvisor.FormatBytes(GC.GetTotalMemory(forceFullCollection: false));
+                var engine = _scanner.LastEngine == ScanEngine.Mft ? "MFT" : "parallel";
+                StatusMessage = $"Done in {elapsed:F1}s ({engine} scan). {GeminiFolderAdvisor.FormatBytes(RootNode.SizeInBytes)} in {RootNode.FileCount:N0} files. Memory: {memory}." +
+                    (_scanner.LastFallbackReason is { } reason && IsDriveRoot(path) ? $" Tip: {reason}" : string.Empty);
             }
             catch (Exception ex) when (ex is OperationCanceledException || ex is AggregateException { InnerException: OperationCanceledException })
             {
@@ -110,6 +121,10 @@ namespace SweepV.App.ViewModels
                 IsScanning = false;
             }
         }
+
+        private static bool IsDriveRoot(string path) =>
+            Path.GetPathRoot(path) is { } root &&
+            string.Equals(Path.TrimEndingDirectorySeparator(Path.GetFullPath(path)), Path.TrimEndingDirectorySeparator(root), StringComparison.OrdinalIgnoreCase);
 
         [RelayCommand]
         private void CancelScan() => _scanCts?.Cancel();

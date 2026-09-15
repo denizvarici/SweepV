@@ -30,17 +30,22 @@ namespace SweepV.Core.Scanning
                 throw new DirectoryNotFoundException($"Directory not found: {path}");
 
             var state = new ScanState(progress, cancellationToken);
-            var root = CreateDirectoryNode(directoryInfo, parent: null);
+            var root = new ScanNode
+            {
+                Name = directoryInfo.Name,
+                FullPath = directoryInfo.FullName,
+                IsDirectory = true,
+                LastModifiedUtc = SafeLastWrite(directoryInfo)
+            };
             ScanChildrenInto(root, directoryInfo, depth: 0, state);
 
             progress?.Report(new ScanProgress(state.Files, state.Bytes, root.FullPath));
             return root;
         }
 
-        private static ScanNode CreateDirectoryNode(DirectoryInfo directoryInfo, ScanNode? parent) => new()
+        private static ScanNode CreateDirectoryNode(DirectoryInfo directoryInfo, ScanNode parent) => new()
         {
             Name = directoryInfo.Name,
-            FullPath = directoryInfo.FullName,
             IsDirectory = true,
             LastModifiedUtc = SafeLastWrite(directoryInfo),
             Parent = parent
@@ -58,7 +63,6 @@ namespace SweepV.Core.Scanning
                     var fileNode = new ScanNode()
                     {
                         Name = file.Name,
-                        FullPath = file.FullName,
                         IsDirectory = false,
                         SizeInBytes = file.Length,
                         FileCount = 1,
@@ -68,7 +72,7 @@ namespace SweepV.Core.Scanning
                     parent.Children.Add(fileNode);
                     parent.SizeInBytes += fileNode.SizeInBytes;
                     parent.FileCount++;
-                    state.AddFile(fileNode.SizeInBytes, parent.FullPath);
+                    state.AddFile(fileNode.SizeInBytes, directoryInfo);
                 }
                 else if (entry is DirectoryInfo subdirectory)
                 {
@@ -95,7 +99,11 @@ namespace SweepV.Core.Scanning
                 parent.FileCount += childNode.FileCount;
             }
 
-            parent.Children.Sort((a, b) => b.SizeInBytes.CompareTo(a.SizeInBytes));
+            if (parent.HasChildren)
+            {
+                parent.Children.Sort((a, b) => b.SizeInBytes.CompareTo(a.SizeInBytes));
+                parent.Children.TrimExcess();
+            }
         }
 
         private static IEnumerable<FileSystemInfo> SafeEnumerate(DirectoryInfo directoryInfo)
@@ -133,7 +141,7 @@ namespace SweepV.Core.Scanning
             public long Files => Interlocked.Read(ref _files);
             public long Bytes => Interlocked.Read(ref _bytes);
 
-            public void AddFile(long size, string currentPath)
+            public void AddFile(long size, DirectoryInfo currentDirectory)
             {
                 Interlocked.Increment(ref _files);
                 Interlocked.Add(ref _bytes, size);
@@ -146,7 +154,7 @@ namespace SweepV.Core.Scanning
                 if (now - last >= ProgressIntervalMs &&
                     Interlocked.CompareExchange(ref _lastReportTicks, now, last) == last)
                 {
-                    progress.Report(new ScanProgress(Files, Bytes, currentPath));
+                    progress.Report(new ScanProgress(Files, Bytes, currentDirectory.FullName));
                 }
             }
         }
