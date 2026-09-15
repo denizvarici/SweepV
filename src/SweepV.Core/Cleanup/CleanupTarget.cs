@@ -29,6 +29,12 @@ namespace SweepV.Core.Cleanup
         public bool IsRecommended { get; init; }
         public bool RequiresAdmin { get; init; }
 
+        /// <summary>
+        /// Take ownership before deleting and remove the resolved folders themselves, not just their
+        /// contents. Meant for leftovers owned by TrustedInstaller such as Windows.old.
+        /// </summary>
+        public bool RemoveFolderWithOwnership { get; init; }
+
         /// <summary>Folders whose contents are cleaned. Non-existent folders are ignored.</summary>
         public Func<IEnumerable<string>> ResolveFolders { get; init; } = () => [];
 

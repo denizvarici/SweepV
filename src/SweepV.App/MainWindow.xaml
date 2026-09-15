@@ -48,6 +48,16 @@
                     <TextBlock Text="Known safe cleanup locations" FontSize="18" FontWeight="SemiBold"/>
                     <TextBlock Foreground="{StaticResource Muted}" TextWrapping="Wrap"
                                Text="Recommended items are pre-selected. Only the contents of checked locations are removed; files in use are skipped. Items marked with ⚠ may contain things you want to keep."/>
+                    <Border Background="#FFFBEB" BorderBrush="#FCD34D" BorderThickness="1" CornerRadius="6"
+                            Padding="10,6" Margin="0,8,0,0"
+                            Visibility="{Binding IsElevated, Converter={StaticResource Hidden}}">
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right" Content="🛡 Restart as administrator" Margin="8,0,0,0"
+                                    Command="{Binding RestartAsAdminCommand}"/>
+                            <TextBlock VerticalAlignment="Center" TextWrapping="Wrap" Foreground="#92400E"
+                                       Text="SweepV is running without administrator rights. Locations tagged 'admin' (Windows Temp, Windows Update cache, Windows.old…) will be skipped until you restart as administrator."/>
+                        </DockPanel>
+                    </Border>
                 </StackPanel>
 
                 <Border Grid.Row="1" Style="{StaticResource Card}" Padding="0">
@@ -81,7 +91,18 @@
                                             </Border>
                                         </StackPanel>
                                         <TextBlock Text="{Binding Target.Description}" Foreground="{StaticResource Muted}" TextWrapping="Wrap"/>
-                                        <TextBlock Text="{Binding Status}" Foreground="#059669" FontSize="11"/>
+                                        <TextBlock Text="{Binding Status}" FontSize="11">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Foreground" Value="#059669"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding NeedsElevation}" Value="True">
+                                                            <Setter Property="Foreground" Value="#B45309"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
                                     </StackPanel>
                                     <TextBlock Grid.Column="2" Text="{Binding SizeText}" FontSize="14" FontWeight="SemiBold"
                                                HorizontalAlignment="Right" VerticalAlignment="Center"/>

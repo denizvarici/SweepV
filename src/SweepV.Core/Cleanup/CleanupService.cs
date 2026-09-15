@@ -2,7 +2,8 @@ using SweepV.Core.Platform;
 
 namespace SweepV.Core.Cleanup
 {
-    public readonly record struct CleanupResult(long FreedBytes, int DeletedItems, int SkippedItems);
+    /// <param name="MissingAdminRights">The target needs administrator rights the process doesn't have, so results are partial or empty.</param>
+    public readonly record struct CleanupResult(long FreedBytes, int DeletedItems, int SkippedItems, bool MissingAdminRights = false);
 
     /// <summary>
     /// Measures and cleans <see cref="CleanupTarget"/>s. Locked or inaccessible items
@@ -41,11 +42,24 @@ namespace SweepV.Core.Cleanup
                 return WindowsShell.EmptyRecycleBin() ? new CleanupResult(size, 1, 0) : new CleanupResult(0, 0, 1);
             }
 
+            var missingAdmin = target.RequiresAdmin && !Elevation.IsElevated;
             var tally = new Tally();
             foreach (var folder in ExistingFolders(target))
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                if (target.FilePattern is null)
+                if (target.RemoveFolderWithOwnership)
+                {
+                    // Without elevation nothing in here is deletable; don't grind through it.
+                    if (missingAdmin)
+                        break;
+
+                    Elevation.TakeOwnership(folder, cancellationToken);
+                    var root = new DirectoryInfo(folder);
+                    DeleteContents(root, tally, cancellationToken);
+                    try { root.Attributes = FileAttributes.Directory; root.Delete(); }
+                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* locked leftovers */ }
+                }
+                else if (target.FilePattern is null)
                 {
                     DeleteContents(new DirectoryInfo(folder), tally, cancellationToken);
                 }
@@ -55,8 +69,11 @@ namespace SweepV.Core.Cleanup
                         TryDeleteFile(file, tally);
                 }
             }
-            return new CleanupResult(tally.Freed, tally.Deleted, tally.Skipped);
+            return new CleanupResult(tally.Freed, tally.Deleted, tally.Skipped, missingAdmin);
         }
+
+        /// <summary>True when the target can't be (fully) cleaned by the current process.</summary>
+        public static bool NeedsElevation(CleanupTarget target) => target.RequiresAdmin && !Elevation.IsElevated;
 
         private static IEnumerable<string> ExistingFolders(CleanupTarget target) =>
             target.ResolveFolders()
@@ -121,7 +138,7 @@ namespace SweepV.Core.Cleanup
 
                     case DirectoryInfo sub:
                         DeleteContents(sub, tally, cancellationToken);
-                        try { sub.Delete(); }
+                        try { sub.Attributes = FileAttributes.Directory; sub.Delete(); }
                         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* still has locked files */ }
                         break;
                 }
@@ -133,8 +150,9 @@ namespace SweepV.Core.Cleanup
             try
             {
                 var size = file.Length;
-                if (file.IsReadOnly)
-                    file.IsReadOnly = false;
+                // Read-only/system/hidden attributes block deletion (common in Windows.old).
+                if ((file.Attributes & (FileAttributes.ReadOnly | FileAttributes.System | FileAttributes.Hidden)) != 0)
+                    file.Attributes = FileAttributes.Normal;
                 file.Delete();
                 tally.Freed += size;
                 tally.Deleted++;

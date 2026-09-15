@@ -1,6 +1,8 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using SweepV.App.Services;
+using SweepV.Core.Platform;
 using SweepV.Core.Ai;
 using SweepV.Core.Cleanup;
 
@@ -10,14 +12,20 @@ namespace SweepV.App.ViewModels
     {
         public CleanupTarget Target { get; } = target;
 
+        /// <summary>Needs administrator rights the app doesn't currently have.</summary>
+        public bool NeedsElevation { get; } = CleanupService.NeedsElevation(target);
+
+        // Admin-only targets would just be skipped, so don't pre-select them without rights.
         [ObservableProperty]
-        private bool _isSelected = target.IsRecommended;
+        private bool _isSelected = target.IsRecommended && !CleanupService.NeedsElevation(target);
 
         [ObservableProperty]
         private long? _sizeInBytes;
 
         [ObservableProperty]
-        private string _status = string.Empty;
+        private string _status = CleanupService.NeedsElevation(target)
+            ? "Requires administrator — restart SweepV as administrator to clean this."
+            : string.Empty;
 
         public string SizeText => SizeInBytes is { } size ? GeminiFolderAdvisor.FormatBytes(size) : "…";
         public bool IsCaution => Target.Risk == CleanupRisk.Caution;
@@ -38,6 +46,15 @@ namespace SweepV.App.ViewModels
 
         [ObservableProperty]
         private string _statusMessage = "Click Analyze to measure how much space can be freed.";
+
+        public bool IsElevated => Elevation.IsElevated;
+
+        [RelayCommand]
+        private void RestartAsAdmin()
+        {
+            if (!AdminRelauncher.RestartAsAdministrator())
+                StatusMessage = "Administrator restart was cancelled.";
+        }
 
         public string SelectedTotalText =>
             GeminiFolderAdvisor.FormatBytes(Items.Where(i => i.IsSelected).Sum(i => i.SizeInBytes ?? 0));
@@ -60,10 +77,7 @@ namespace SweepV.App.ViewModels
             IsBusy = true;
             StatusMessage = "Measuring…";
             foreach (var item in Items)
-            {
                 item.SizeInBytes = null;
-                item.Status = string.Empty;
-            }
 
             await Parallel.ForEachAsync(Items, async (item, ct) =>
             {
@@ -96,20 +110,32 @@ namespace SweepV.App.ViewModels
             IsBusy = true;
             long freed = 0;
             var skipped = 0;
+            var needAdmin = new List<string>();
             foreach (var item in selected)
             {
-                item.Status = "Cleaning…";
+                item.Status = item.Target.RemoveFolderWithOwnership && !item.NeedsElevation
+                    ? "Taking ownership and removing… this can take several minutes."
+                    : "Cleaning…";
                 var result = await Task.Run(() => _service.Clean(item.Target));
                 freed += result.FreedBytes;
                 skipped += result.SkippedItems;
-                item.Status = result.SkippedItems > 0
-                    ? $"Freed {GeminiFolderAdvisor.FormatBytes(result.FreedBytes)}, {result.SkippedItems} in use / no access"
-                    : $"Freed {GeminiFolderAdvisor.FormatBytes(result.FreedBytes)}";
+                if (result.MissingAdminRights)
+                    needAdmin.Add(item.Target.Name);
+
+                var freedText = $"Freed {GeminiFolderAdvisor.FormatBytes(result.FreedBytes)}";
+                item.Status = result switch
+                {
+                    { MissingAdminRights: true, FreedBytes: 0 } => "Skipped — requires administrator.",
+                    { MissingAdminRights: true } => $"{freedText}; the rest requires administrator.",
+                    { SkippedItems: > 0 } => $"{freedText}, {result.SkippedItems} in use / no access",
+                    _ => freedText
+                };
                 item.SizeInBytes = await Task.Run(() => _service.Measure(item.Target));
             }
 
             StatusMessage = $"Done. Freed {GeminiFolderAdvisor.FormatBytes(freed)}." +
-                (skipped > 0 ? $" {skipped} items were skipped (in use or require administrator rights)." : string.Empty);
+                (skipped > 0 ? $" {skipped} items were in use and skipped." : string.Empty) +
+                (needAdmin.Count > 0 ? $" Needs administrator: {string.Join(", ", needAdmin)}." : string.Empty);
             IsBusy = false;
         }
     }

@@ -126,6 +126,7 @@ namespace SweepV.Core.Cleanup
                     Description = "Left after a Windows upgrade. Removing it means you can no longer roll back to the previous version.",
                     Risk = CleanupRisk.Caution,
                     RequiresAdmin = true,
+                    RemoveFolderWithOwnership = true,
                     ResolveFolders = () => [Path.Combine(systemDrive, "Windows.old")]
                 }
             ];

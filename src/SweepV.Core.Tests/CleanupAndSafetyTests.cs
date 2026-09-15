@@ -69,6 +69,40 @@ namespace SweepV.Core.Tests
         }
 
         [Fact]
+        public void Clean_AdminOwnershipTargetWithoutElevation_IsSkippedAndReported()
+        {
+            if (Platform.Elevation.IsElevated)
+                return; // Only meaningful for a normal user process.
+
+            var tempPath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+            Directory.CreateDirectory(tempPath);
+            File.WriteAllText(Path.Combine(tempPath, "a.txt"), "x");
+
+            try
+            {
+                var target = new CleanupTarget
+                {
+                    Id = "test",
+                    Name = "Test",
+                    Description = "Test",
+                    RequiresAdmin = true,
+                    RemoveFolderWithOwnership = true,
+                    ResolveFolders = () => [tempPath]
+                };
+
+                var result = new CleanupService().Clean(target);
+
+                Assert.True(result.MissingAdminRights);
+                Assert.Equal(0, result.FreedBytes);
+                Assert.True(File.Exists(Path.Combine(tempPath, "a.txt")));
+            }
+            finally
+            {
+                Directory.Delete(tempPath, recursive: true);
+            }
+        }
+
+        [Fact]
         public void PathSafety_ProtectsSystemLocations()
         {
             var windows = Environment.GetFolderPath(Environment.SpecialFolder.Windows);

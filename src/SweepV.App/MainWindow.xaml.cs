@@ -17,6 +17,8 @@ public partial class MainWindow : Window
         InitializeComponent();
         var viewModel = new MainViewModel();
         DataContext = viewModel;
+        if (SweepV.Core.Platform.Elevation.IsElevated)
+            Title += " (Administrator)";
 
         // Keep the latest chat message in view.
         viewModel.Chat.Messages.CollectionChanged += (_, e) =>
