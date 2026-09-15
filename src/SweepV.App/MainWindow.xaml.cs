@@ -1,14 +1,9 @@
-﻿using SweepV.App.ViewModels;
-using System.Text;
+using SweepV.App.ViewModels;
+using SweepV.Core.Models;
+using System.Collections.Specialized;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
 using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
 
 namespace SweepV.App;
 
@@ -20,6 +15,23 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        DataContext = new MainViewModel();
+        var viewModel = new MainViewModel();
+        DataContext = viewModel;
+
+        // Keep the latest chat message in view.
+        viewModel.Chat.Messages.CollectionChanged += (_, e) =>
+        {
+            if (e.Action == NotifyCollectionChangedAction.Add)
+                Dispatcher.BeginInvoke(() => ChatScroll.ScrollToEnd());
+        };
+    }
+
+    private void ListViewItem_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is ListViewItem { DataContext: ScanNode node } &&
+            DataContext is MainViewModel viewModel)
+        {
+            viewModel.OpenFolderCommand.Execute(node);
+        }
     }
 }

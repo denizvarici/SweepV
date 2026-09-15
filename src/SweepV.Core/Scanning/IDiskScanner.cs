@@ -1,4 +1,4 @@
-﻿using SweepV.Core.Models;
+using SweepV.Core.Models;
 
 namespace SweepV.Core.Scanning
 {
@@ -8,6 +8,8 @@ namespace SweepV.Core.Scanning
     /// </summary>
     public interface IDiskScanner
     {
-        ScanNode ScanDirectory(string path);
+        ScanNode ScanDirectory(string path, IProgress<ScanProgress>? progress = null, CancellationToken cancellationToken = default);
     }
+
+    public readonly record struct ScanProgress(long FilesScanned, long BytesScanned, string CurrentPath);
 }
