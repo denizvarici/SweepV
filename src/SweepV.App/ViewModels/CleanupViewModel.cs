@@ -39,6 +39,7 @@ namespace SweepV.App.ViewModels
         public bool IsExact => Inspection?.IsExact ?? true;
         public string? Note => Inspection?.Note;
         public bool IsCaution => Target.Risk == CleanupRisk.Caution;
+        public string Category => Target.Category;
 
         public string SizeText => Inspection switch
         {
@@ -56,7 +57,14 @@ namespace SweepV.App.ViewModels
         public ObservableCollection<CleanupItemViewModel> Items { get; } =
             new(CleanupCatalog.CreateDefault().Select(t => new CleanupItemViewModel(t)));
 
-        /// <summary><see cref="Items"/> grouped by category, without items that don't exist on this PC.</summary>
+        /// <summary>Reversible Windows settings that reserve space (hibernation, Reserved Storage).</summary>
+        public IReadOnlyList<SystemToggleViewModel> Toggles { get; } =
+            SystemToggles.Create().Where(t => t.IsSupported()).Select(t => new SystemToggleViewModel(t)).ToList();
+
+        /// <summary>
+        /// Cleanup items followed by the on/off settings, grouped by category (the settings group comes last),
+        /// without items that don't exist on this PC.
+        /// </summary>
         public ICollectionView ItemsView { get; }
 
         [ObservableProperty]
@@ -80,9 +88,11 @@ namespace SweepV.App.ViewModels
 
         public CleanupViewModel()
         {
-            ItemsView = CollectionViewSource.GetDefaultView(Items);
-            ItemsView.GroupDescriptions.Add(new PropertyGroupDescription("Target.Category"));
-            ItemsView.Filter = item => ((CleanupItemViewModel)item).IsApplicable;
+            // Groups appear in the order of their first item, so appending the toggles puts them at the bottom.
+            var rows = new ObservableCollection<object>([.. Items, .. Toggles]);
+            ItemsView = CollectionViewSource.GetDefaultView(rows);
+            ItemsView.GroupDescriptions.Add(new PropertyGroupDescription(nameof(CleanupItemViewModel.Category)));
+            ItemsView.Filter = row => row is not CleanupItemViewModel item || item.IsApplicable;
             if (ItemsView is ICollectionViewLiveShaping live)
             {
                 live.IsLiveFiltering = true;
@@ -132,6 +142,7 @@ namespace SweepV.App.ViewModels
             IsMeasuring = true;
             StatusMessage = "Calculating…";
 
+            var toggles = Task.WhenAll(Toggles.Select(t => t.RefreshAsync()));
             await Parallel.ForEachAsync(Items, async (item, ct) =>
             {
                 var inspection = await Task.Run(() => _service.Inspect(item.Target, ct), ct);
@@ -142,6 +153,7 @@ namespace SweepV.App.ViewModels
                         item.IsSelected = false;
                 });
             });
+            await toggles;
 
             IsMeasuring = false;
             StatusMessage = "Select the locations you want to clean.";

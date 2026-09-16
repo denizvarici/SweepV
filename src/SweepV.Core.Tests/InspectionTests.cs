@@ -74,6 +74,18 @@ namespace SweepV.Core.Tests
         }
 
         [Fact]
+        public void Toggles_AreSeparateFromOneWayActions_AndQueryWithoutThrowing()
+        {
+            var toggles = SystemToggles.Create();
+            var catalogIds = CleanupCatalog.CreateDefault().Select(t => t.Id).ToHashSet();
+
+            Assert.Contains(toggles, t => t.Id == "hibernation");
+            Assert.All(toggles, t => Assert.DoesNotContain(t.Id, catalogIds));
+            foreach (var toggle in toggles.Where(t => t.IsSupported()))
+                toggle.Query(CancellationToken.None);
+        }
+
+        [Fact]
         public void DefaultCatalog_InspectsWithoutThrowing_AndHasUniqueIds()
         {
             var catalog = CleanupCatalog.CreateDefault();

@@ -13,8 +13,6 @@ namespace SweepV.Core.Cleanup
         public static IReadOnlyList<CleanupTarget> Create() =>
         [
             ComponentStoreCleanup(),
-            ReservedStorage(),
-            Hibernation(),
             RestorePoints(),
             VirtualDiskCompaction()
         ];
@@ -50,53 +48,6 @@ namespace SweepV.Core.Cleanup
             Execute = ct => MeasureFreed(ct, () =>
                 ProcessRunner.Run(ProcessRunner.SystemTool("Dism.exe"),
                     ["/Online", "/Cleanup-Image", "/StartComponentCleanup", "/English"], ct))
-        };
-
-        // ------------------------------------------------------------ Reserved storage
-
-        private const long TypicalReservedStorage = 7L * 1024 * 1024 * 1024;
-
-        private static CleanupTarget ReservedStorage() => new()
-        {
-            Id = "reserved-storage",
-            Name = "Turn off Reserved Storage",
-            Description = "Windows keeps about 7 GB aside so updates always have room. Turning it off gives that space back, but large updates may fail when the disk is nearly full.",
-            Category = CleanupCategories.SystemActions,
-            Kind = CleanupKind.Command,
-            Risk = CleanupRisk.Caution,
-            RequiresAdmin = true,
-            Inspect = ct =>
-            {
-                if (!Elevation.IsElevated)
-                    return new TargetInspection(true, TypicalReservedStorage, IsExact: false, Note: "Restart as administrator to check whether it is enabled.");
-
-                var result = ProcessRunner.Run(ProcessRunner.SystemTool("Dism.exe"), ["/Online", "/Get-ReservedStorageState", "/English"], ct);
-                return result.Succeeded && result.Output.Contains("Reserved storage is enabled", StringComparison.OrdinalIgnoreCase)
-                    ? new TargetInspection(true, TypicalReservedStorage, IsExact: false)
-                    : TargetInspection.NotApplicable;
-            },
-            Execute = ct => MeasureFreed(ct, () =>
-                ProcessRunner.Run(ProcessRunner.SystemTool("Dism.exe"), ["/Online", "/Set-ReservedStorageState", "/State:Disabled", "/English"], ct))
-        };
-
-        // ------------------------------------------------------------ hiberfil.sys
-
-        private static CleanupTarget Hibernation() => new()
-        {
-            Id = "hibernation",
-            Name = "Turn off hibernation (hiberfil.sys)",
-            Description = "Deletes the hibernation file, which is often 40% of your RAM. You lose Hibernate and Fast Startup; laptops that hibernate on low battery will shut down instead.",
-            Category = CleanupCategories.SystemActions,
-            Kind = CleanupKind.Command,
-            Risk = CleanupRisk.Caution,
-            RequiresAdmin = true,
-            Inspect = _ =>
-            {
-                var file = SystemDriveFile("hiberfil.sys");
-                return file is null ? TargetInspection.NotApplicable : new TargetInspection(true, file.Length);
-            },
-            Execute = ct => MeasureFreed(ct, () =>
-                ProcessRunner.Run(ProcessRunner.SystemTool("powercfg.exe"), ["/hibernate", "off"], ct))
         };
 
         // ------------------------------------------------------------ restore points
@@ -239,10 +190,10 @@ namespace SweepV.Core.Cleanup
                 : new CleanupResult(freed, 0, 1, Message: "Windows reported an error: " + LastLine(result.Output));
         }
 
-        private static string SystemDrive() =>
+        internal static string SystemDrive() =>
             Path.GetPathRoot(Environment.GetFolderPath(Environment.SpecialFolder.Windows)) ?? @"C:\";
 
-        private static FileInfo? SystemDriveFile(string name)
+        internal static FileInfo? SystemDriveFile(string name)
         {
             try
             {
@@ -284,7 +235,7 @@ namespace SweepV.Core.Cleanup
 
         private static string FormatGb(long bytes) => $"{bytes / (1024d * 1024 * 1024):0.#} GB";
 
-        private static string LastLine(string output) =>
+        public static string LastLine(string output) =>
             output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).LastOrDefault() ?? "unknown error";
 
         private static IEnumerable<string> SafeDirectories(string path)
