@@ -276,13 +276,8 @@
                                 <ContextMenu>
                                     <MenuItem Header="Ask AI: what is this?" Command="{Binding AskAiCommand}"/>
                                     <MenuItem Header="Open in File Explorer" Command="{Binding OpenInExplorerCommand}"/>
-                                    <Separator/>
-                                    <MenuItem Header="Move to Recycle Bin" Command="{Binding RecycleSelectedCommand}"/>
                                 </ContextMenu>
                             </ListView.ContextMenu>
-                            <ListView.InputBindings>
-                                <KeyBinding Key="Delete" Command="{Binding RecycleSelectedCommand}"/>
-                            </ListView.InputBindings>
                             <ListView.ItemContainerStyle>
                                 <Style TargetType="ListViewItem">
                                     <EventSetter Event="MouseDoubleClick" Handler="ListViewItem_MouseDoubleClick"/>
@@ -332,7 +327,6 @@
                     <DockPanel Grid.Row="3" Margin="0,8,0,0">
                         <Button Content="🤖 Ask AI" Command="{Binding AskAiCommand}" Style="{StaticResource PrimaryButton}"/>
                         <Button Content="Open in Explorer" Command="{Binding OpenInExplorerCommand}"/>
-                        <Button Content="🗑 Recycle" Command="{Binding RecycleSelectedCommand}"/>
                         <TextBlock Text="{Binding StatusMessage}" VerticalAlignment="Center" Margin="6,0,0,0"
                                    Foreground="{StaticResource Muted}" TextTrimming="CharacterEllipsis"/>
                     </DockPanel>
@@ -360,9 +354,18 @@
 
                         <StackPanel Grid.Row="1" Margin="0,8,0,0" Visibility="{Binding IsKeyEditorOpen, Converter={StaticResource Visible}}">
                             <TextBlock Text="Gemini API key (stored encrypted for your Windows user):" Foreground="{StaticResource Muted}" TextWrapping="Wrap"/>
+                            <DockPanel Margin="0,4,0,0" Visibility="{Binding HasApiKey, Converter={StaticResource Visible}}">
+                                <Button DockPanel.Dock="Right" Content="Remove" Command="{Binding RemoveApiKeyCommand}" Margin="6,0,0,0"/>
+                                <TextBlock VerticalAlignment="Center">
+                                    <Run Text="Saved:" Foreground="{StaticResource Muted}"/>
+                                    <Run Text="{Binding MaskedApiKey, Mode=OneWay}" FontFamily="Consolas"/>
+                                </TextBlock>
+                            </DockPanel>
                             <DockPanel Margin="0,4,0,0">
-                                <Button DockPanel.Dock="Right" Content="Save" Command="{Binding SaveApiKeyCommand}" Margin="6,0,0,0"/>
-                                <TextBox Text="{Binding ApiKey, UpdateSourceTrigger=PropertyChanged}" FontFamily="Consolas" Padding="3"/>
+                                <Button DockPanel.Dock="Right" Content="Save" Click="SaveApiKey_Click" Margin="6,0,0,0"/>
+                                <!-- PasswordBox never shows or exposes the key; it's cleared right after saving. -->
+                                <PasswordBox x:Name="ApiKeyBox" FontFamily="Consolas" Padding="3" KeyDown="ApiKeyBox_KeyDown"
+                                             ToolTip="Paste a new key to save or replace it"/>
                             </DockPanel>
                         </StackPanel>
 

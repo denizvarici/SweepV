@@ -28,6 +28,19 @@ public partial class MainWindow : Window
         };
     }
 
+    private void SaveApiKey_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is MainViewModel viewModel)
+            viewModel.Chat.SaveApiKey(ApiKeyBox.Password);
+        ApiKeyBox.Clear();
+    }
+
+    private void ApiKeyBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter)
+            SaveApiKey_Click(sender, e);
+    }
+
     private void ListViewItem_MouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
         if (sender is ListViewItem { DataContext: ScanNode node } &&

@@ -46,7 +46,7 @@ namespace SweepV.App.ViewModels
         private ScanNode? _currentNode;
 
         [ObservableProperty]
-        [NotifyCanExecuteChangedFor(nameof(AskAiCommand), nameof(RecycleSelectedCommand), nameof(OpenInExplorerCommand))]
+        [NotifyCanExecuteChangedFor(nameof(AskAiCommand), nameof(OpenInExplorerCommand))]
         private ScanNode? _selectedNode;
 
         [ObservableProperty]
@@ -169,36 +169,6 @@ namespace SweepV.App.ViewModels
                 return;
             var args = SelectedNode.IsDirectory ? $"\"{SelectedNode.FullPath}\"" : $"/select,\"{SelectedNode.FullPath}\"";
             Process.Start(new ProcessStartInfo("explorer.exe", args) { UseShellExecute = true });
-        }
-
-        [RelayCommand(CanExecute = nameof(HasSelection))]
-        private async Task RecycleSelectedAsync()
-        {
-            if (SelectedNode is not { } node)
-                return;
-
-            if (PathSafety.IsProtected(node.FullPath, out var reason))
-            {
-                Dialogs.Info(reason, "Protected location");
-                return;
-            }
-
-            if (!Dialogs.Confirm($"Move to the Recycle Bin?\n\n{node.FullPath}\n{GeminiFolderAdvisor.FormatBytes(node.SizeInBytes)}\n\nNot sure what it is? Use \"Ask AI\" first.", "Delete"))
-                return;
-
-            StatusMessage = $"Moving {node.Name} to the Recycle Bin…";
-            var ok = await Task.Run(() => WindowsShell.SendToRecycleBin(node.FullPath));
-            var stillExists = node.IsDirectory ? Directory.Exists(node.FullPath) : File.Exists(node.FullPath);
-            if (ok && !stillExists)
-            {
-                node.Detach();
-                RefreshItems();
-                StatusMessage = $"Moved {node.Name} to the Recycle Bin ({GeminiFolderAdvisor.FormatBytes(node.SizeInBytes)}). Empty the bin in Quick Clean to free the space.";
-            }
-            else
-            {
-                StatusMessage = $"Could not delete {node.Name} completely. Some files may be in use or need administrator rights.";
-            }
         }
     }
 }

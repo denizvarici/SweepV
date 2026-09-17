@@ -82,21 +82,51 @@ namespace SweepV.App.ViewModels
         [NotifyCanExecuteChangedFor(nameof(SendCommand))]
         private bool _isThinking;
 
-        [ObservableProperty]
+        // Never bound to the UI: the view only ever sees MaskedApiKey.
         private string _apiKey;
+        private string ApiKey
+        {
+            get => _apiKey;
+            set
+            {
+                _apiKey = value;
+                OnPropertyChanged(nameof(HasApiKey));
+                OnPropertyChanged(nameof(MaskedApiKey));
+                RemoveApiKeyCommand.NotifyCanExecuteChanged();
+            }
+        }
 
         [ObservableProperty]
         private bool _isKeyEditorOpen;
 
         public bool HasApiKey => !string.IsNullOrWhiteSpace(ApiKey);
 
-        partial void OnApiKeyChanged(string value) => OnPropertyChanged(nameof(HasApiKey));
-
-        [RelayCommand]
-        private void SaveApiKey()
+        /// <summary>First 4 and last 4 characters only, e.g. "AIza••••••••wXyz".</summary>
+        public string MaskedApiKey => ApiKey.Trim() switch
         {
+            { Length: 0 } => "No key saved",
+            { Length: <= 10 } k => new string('•', k.Length),
+            var k => $"{k[..4]}••••••••{k[^4..]}"
+        };
+
+        /// <summary>Called by the view with the contents of the password box, which is then cleared.</summary>
+        public void SaveApiKey(string newKey)
+        {
+            if (string.IsNullOrWhiteSpace(newKey))
+                return;
+            ApiKey = newKey.Trim();
             PersistSettings();
-            IsKeyEditorOpen = !HasApiKey;
+            IsKeyEditorOpen = false;
+        }
+
+        [RelayCommand(CanExecute = nameof(HasApiKey))]
+        private void RemoveApiKey()
+        {
+            if (!Dialogs.Confirm("Remove the saved Gemini API key from this PC?", "Remove API key"))
+                return;
+            ApiKey = string.Empty;
+            PersistSettings();
+            IsKeyEditorOpen = true;
         }
 
         [RelayCommand]
