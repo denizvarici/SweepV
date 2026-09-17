@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:conv="clr-namespace:SweepV.App.Converters"
         xmlns:vm="clr-namespace:SweepV.App.ViewModels"
-        Title="SweepV — Disk Cleanup" Height="760" Width="1240" MinWidth="900" MinHeight="560"
+        Title="SweepV" Icon="/Assets/SweepV.ico" Height="760" Width="1240" MinWidth="900" MinHeight="560"
         WindowStartupLocation="CenterScreen" Background="#F5F6F8">
     <Window.Resources>
         <conv:BytesToTextConverter x:Key="Bytes"/>

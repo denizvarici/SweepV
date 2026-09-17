@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
     <ProjectReference Include="..\SweepV.Core\SweepV.Core.csproj" />
@@ -14,6 +14,21 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+
+    <!-- The executable is SweepV.exe; namespaces stay SweepV.App. -->
+    <AssemblyName>SweepV</AssemblyName>
+    <RootNamespace>SweepV.App</RootNamespace>
+    <Product>SweepV</Product>
+    <Description>Free disk cleanup for Windows</Description>
+    <Version>1.0.0</Version>
   </PropertyGroup>
+
+  <!-- App icon: embedded in SweepV.exe (Explorer, taskbar) and used by the window title bar. -->
+  <PropertyGroup>
+    <ApplicationIcon>Assets\SweepV.ico</ApplicationIcon>
+  </PropertyGroup>
+  <ItemGroup>
+    <Resource Include="Assets\SweepV.ico" />
+  </ItemGroup>
 
 </Project>
