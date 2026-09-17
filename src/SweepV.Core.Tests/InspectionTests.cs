@@ -19,6 +19,33 @@ namespace SweepV.Core.Tests
         }
 
         [Fact]
+        public void IsPresent_MatchesInspectApplicability()
+        {
+            var existing = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+            Directory.CreateDirectory(existing);
+            try
+            {
+                var service = new CleanupService();
+                var present = new CleanupTarget { Id = "a", Name = "A", Description = "A", ResolveFolders = () => [existing] };
+                var missing = new CleanupTarget { Id = "b", Name = "B", Description = "B", ResolveFolders = () => [existing + "-missing"] };
+                var noMatch = new CleanupTarget { Id = "c", Name = "C", Description = "C", ResolveFolders = () => [existing], FilePattern = "MEMORY.DMP" };
+                var command = new CleanupTarget { Id = "d", Name = "D", Description = "D", Kind = CleanupKind.Command };
+
+                Assert.True(service.IsPresent(present));
+                Assert.False(service.IsPresent(missing));
+                Assert.False(service.IsPresent(noMatch));
+                Assert.Null(service.IsPresent(command));
+
+                foreach (var target in new[] { present, missing, noMatch })
+                    Assert.Equal(service.IsPresent(target), service.Inspect(target).IsApplicable);
+            }
+            finally
+            {
+                Directory.Delete(existing);
+            }
+        }
+
+        [Fact]
         public void Inspect_ExistingEmptyFolder_IsApplicableWithZeroBytes()
         {
             var tempPath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());

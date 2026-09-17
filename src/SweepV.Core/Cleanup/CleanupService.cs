@@ -21,6 +21,19 @@ namespace SweepV.Core.Cleanup
         public long Measure(CleanupTarget target, CancellationToken cancellationToken = default) =>
             Inspect(target, cancellationToken).Bytes;
 
+        /// <summary>
+        /// Cheap existence check (no size measuring) so the list can be built before sizes are known.
+        /// Returns null for command targets, whose presence is only known after <see cref="Inspect"/>.
+        /// </summary>
+        public bool? IsPresent(CleanupTarget target) => target.Kind switch
+        {
+            CleanupKind.RecycleBin => true,
+            CleanupKind.Command => null,
+            // ExistingFolders is lazy, so Any() stops at the first folder that exists.
+            _ when target.FilePattern is null => ExistingFolders(target).Any(),
+            _ => ExistingFolders(target).Any(folder => MatchingFiles(folder, target.FilePattern!).Any())
+        };
+
         /// <summary>Checks whether the target exists on this PC and how much it can free.</summary>
         public TargetInspection Inspect(CleanupTarget target, CancellationToken cancellationToken = default)
         {

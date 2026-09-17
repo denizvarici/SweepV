@@ -78,8 +78,14 @@
                 </StackPanel>
 
                 <Border Grid.Row="1" Style="{StaticResource Card}" Padding="0">
+                    <!-- Grouping turns virtualization off by default; keep it on so only visible rows get UI elements. -->
                     <ListView ItemsSource="{Binding ItemsView}" BorderThickness="0" HorizontalContentAlignment="Stretch"
-                              ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                              ScrollViewer.CanContentScroll="True"
+                              VirtualizingPanel.IsVirtualizing="True"
+                              VirtualizingPanel.IsVirtualizingWhenGrouping="True"
+                              VirtualizingPanel.VirtualizationMode="Recycling"
+                              VirtualizingPanel.ScrollUnit="Pixel">
                         <ListView.GroupStyle>
                             <GroupStyle>
                                 <GroupStyle.HeaderTemplate>
