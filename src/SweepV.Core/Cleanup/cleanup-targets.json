@@ -263,6 +263,14 @@
       "category": "browsersAndApps",
       "paths": ["%LOCALAPPDATA%/Microsoft/Office/16.0/OfficeFileCache"]
     },
+	{
+      "id": "inet-cache",
+      "name": "Legacy Internet cache (INetCache)",
+      "description": "Temporary internet files used by Internet Explorer mode and older Windows components. Rebuilt automatically.",
+      "category": "browsersAndApps",
+      "recommended": true,
+      "paths": ["%LOCALAPPDATA%/Microsoft/Windows/INetCache"]
+    },
     {
       "id": "adobe-media-cache",
       "name": "Adobe media cache",
