@@ -31,6 +31,13 @@
 
 Works on Windows 10 and Windows 11.
 
+> **If your antivirus complains:** cleanup tools do things that look unusual — deleting lots of
+> files, touching system folders — so antivirus software sometimes flags them by behaviour, even
+> though nothing malicious is happening. SweepV is open source: every line and every cleanup
+> location is in this repository, and the downloads are built by GitHub from this code.
+> If the single .exe is blocked, try the `.zip` download from the
+> [releases page](https://github.com/denizvarici/SweepV/releases) instead.
+
 > **Tip:** Some of the biggest savings (Windows Update leftovers, old Windows installations,
 > system files) need administrator rights. SweepV shows a **Restart as administrator** button
 > when that's the case.

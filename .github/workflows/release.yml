@@ -48,10 +48,25 @@ jobs:
             -o publish
           Move-Item publish/SweepV.exe "SweepV-${{ matrix.rid }}.exe"
 
+      # Plain folder build, zipped: some antivirus engines are suspicious of
+      # compressed single-file executables, so offer an alternative download.
+      - name: Publish folder build
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart('v')
+          dotnet publish src/SweepV.App/SweepV.App.csproj -c Release -r ${{ matrix.rid }} `
+            --self-contained true `
+            -p:DebugType=none `
+            -p:Version=$version `
+            -o publish-folder
+          Compress-Archive -Path publish-folder/* -DestinationPath "SweepV-${{ matrix.rid }}.zip"
+
       - uses: actions/upload-artifact@v4
         with:
           name: SweepV-${{ matrix.rid }}
-          path: SweepV-${{ matrix.rid }}.exe
+          path: |
+            SweepV-${{ matrix.rid }}.exe
+            SweepV-${{ matrix.rid }}.zip
 
   release:
     needs: build
@@ -68,3 +83,5 @@ jobs:
           files: |
             SweepV-win-x64.exe
             SweepV-win-x86.exe
+            SweepV-win-x64.zip
+            SweepV-win-x86.zip
