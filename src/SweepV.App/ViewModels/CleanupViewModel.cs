@@ -69,6 +69,9 @@ namespace SweepV.App.ViewModels
         public bool IsCaution => Target.Risk == CleanupRisk.Caution;
         public string Category => Target.Category;
 
+        /// <summary>System actions are run one at a time with their own button, not ticked in a list.</summary>
+        public bool IsAction => Target.Kind == CleanupKind.Command;
+
         public string SizeText => Inspection switch
         {
             null => "…",
@@ -104,7 +107,7 @@ namespace SweepV.App.ViewModels
         private bool _isMeasuring = true;
 
         [ObservableProperty]
-        [NotifyCanExecuteChangedFor(nameof(CleanCommand), nameof(AnalyzeCommand))]
+        [NotifyCanExecuteChangedFor(nameof(CleanCommand), nameof(AnalyzeCommand), nameof(RunActionCommand))]
         private bool _isCleaning;
 
         /// <summary>Items being cleaned right now; a measurement finishing must not overwrite their state.</summary>
@@ -162,7 +165,8 @@ namespace SweepV.App.ViewModels
         private void SelectRecommended() => ApplyInBatch(() =>
         {
             foreach (var item in Items)
-                item.IsSelected = item.IsApplicable && item.Target.IsRecommended && !item.NeedsElevation && item.SizeInBytes is > 0;
+                item.IsSelected = item.IsApplicable && !item.IsAction && item.Target.IsRecommended &&
+                                  !item.NeedsElevation && item.SizeInBytes is > 0;
             return false;
         });
 
@@ -288,7 +292,8 @@ namespace SweepV.App.ViewModels
         [RelayCommand(CanExecute = nameof(CanClean))]
         private async Task CleanAsync()
         {
-            var selected = Items.Where(i => i.IsSelected && i.IsApplicable).ToList();
+            // System actions are not tickable; each has its own Run button.
+            var selected = Items.Where(i => i.IsSelected && i.IsApplicable && !i.IsAction).ToList();
             if (selected.Count == 0)
             {
                 StatusMessage = "Nothing selected.";
@@ -307,8 +312,6 @@ namespace SweepV.App.ViewModels
             var prompt = "The selected items will be permanently cleaned.";
             if (caution.Count > 0)
                 prompt += "\n\nThese may remove things you want to keep:\n" + string.Join("\n", caution);
-            if (selected.Any(i => i.Target.Kind == CleanupKind.Command))
-                prompt += "\n\nSystem actions can take several minutes.";
             if (!Dialogs.Confirm(prompt + "\n\nContinue?", "Clean selected"))
                 return;
 
@@ -318,29 +321,12 @@ namespace SweepV.App.ViewModels
             var needAdmin = new List<string>();
             foreach (var item in selected)
             {
-                _cleaningItems.Add(item);
-                item.Status = (item.Target.RemoveFolderWithOwnership || item.Target.Kind == CleanupKind.Command) && !item.NeedsElevation
-                    ? "Working… this can take several minutes."
-                    : "Cleaning…";
-                var result = await Task.Run(() => _service.Clean(item.Target));
+                var result = await CleanItemAsync(item);
                 freed += result.FreedBytes;
                 skipped += result.SkippedItems;
                 if (result.MissingAdminRights)
                     needAdmin.Add(item.Target.Name);
-
-                var freedText = $"Freed {GeminiFolderAdvisor.FormatBytes(result.FreedBytes)}";
-                item.Status = result switch
-                {
-                    { MissingAdminRights: true, FreedBytes: 0 } => "Skipped — requires administrator.",
-                    { MissingAdminRights: true } => $"{freedText}; the rest requires administrator.",
-                    { Message: { } message } => $"{freedText}. {message}",
-                    { SkippedItems: > 0 } => $"{freedText}, {result.SkippedItems} in use / no access",
-                    _ => freedText
-                };
-                var inspection = await Task.Run(() => _service.Inspect(item.Target));
-                item.Inspection = inspection;
                 item.IsSelected = false;
-                _cleaningItems.Remove(item);
             }
             // Cleaning can make a location disappear (e.g. Windows.old); update visibility once.
             ItemsView.Refresh();
@@ -349,6 +335,62 @@ namespace SweepV.App.ViewModels
                 (skipped > 0 ? $" {skipped} items were in use and skipped." : string.Empty) +
                 (needAdmin.Count > 0 ? $" Needs administrator: {string.Join(", ", needAdmin)}." : string.Empty);
             IsCleaning = false;
+        }
+
+        /// <summary>Runs one system action on its own, from the Run button next to it.</summary>
+        [RelayCommand(CanExecute = nameof(CanClean))]
+        private async Task RunActionAsync(CleanupItemViewModel? item)
+        {
+            if (item is null)
+                return;
+            if (item.Inspection is null)
+            {
+                StatusMessage = $"Still calculating {item.Target.Name}.";
+                return;
+            }
+            if (item.NeedsElevation)
+            {
+                StatusMessage = $"{item.Target.Name} needs administrator rights — restart SweepV as administrator.";
+                return;
+            }
+
+            var prompt = $"{item.Target.Name}\n\n{item.Target.Description}";
+            if (item.Note is { } note)
+                prompt += "\n\n" + note;
+            prompt += "\n\nThis can take several minutes. Leave SweepV open until it finishes.\n\nRun it now?";
+            if (!Dialogs.Confirm(prompt, "Run system action"))
+                return;
+
+            IsCleaning = true;
+            var result = await CleanItemAsync(item);
+            ItemsView.Refresh();
+            StatusMessage = $"{item.Target.Name}: freed {GeminiFolderAdvisor.FormatBytes(result.FreedBytes)}." +
+                (result.Message is { } message ? " " + message : string.Empty);
+            IsCleaning = false;
+        }
+
+        /// <summary>Cleans one item and updates its row: status, new size, and nothing overwritten meanwhile.</summary>
+        private async Task<CleanupResult> CleanItemAsync(CleanupItemViewModel item)
+        {
+            _cleaningItems.Add(item);
+            item.Status = (item.Target.RemoveFolderWithOwnership || item.IsAction) && !item.NeedsElevation
+                ? "Working… this can take several minutes. Leave SweepV open."
+                : "Cleaning…";
+
+            var result = await Task.Run(() => _service.Clean(item.Target));
+
+            var freedText = $"Freed {GeminiFolderAdvisor.FormatBytes(result.FreedBytes)}";
+            item.Status = result switch
+            {
+                { MissingAdminRights: true, FreedBytes: 0 } => "Skipped — requires administrator.",
+                { MissingAdminRights: true } => $"{freedText}; the rest requires administrator.",
+                { Message: { } message } => $"{freedText}. {message}",
+                { SkippedItems: > 0 } => $"{freedText}, {result.SkippedItems} in use / no access",
+                _ => freedText
+            };
+            item.Inspection = await Task.Run(() => _service.Inspect(item.Target));
+            _cleaningItems.Remove(item);
+            return result;
         }
     }
 }

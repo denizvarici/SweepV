@@ -113,8 +113,10 @@
                                         <ColumnDefinition Width="Auto"/>
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="110"/>
+                                        <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
-                                    <CheckBox IsChecked="{Binding IsSelected}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                    <CheckBox IsChecked="{Binding IsSelected}" VerticalAlignment="Center" Margin="0,0,12,0"
+                                              Visibility="{Binding IsAction, Converter={StaticResource Hidden}}"/>
                                     <StackPanel Grid.Column="1">
                                         <StackPanel Orientation="Horizontal">
                                             <TextBlock Text="⚠ " Foreground="#D97706" FontWeight="Bold"
@@ -156,6 +158,11 @@
                                     </StackPanel>
                                     <TextBlock Grid.Column="2" Text="{Binding SizeText}" FontSize="14" FontWeight="SemiBold"
                                                HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                    <!-- System actions run one at a time, on their own button. -->
+                                    <Button Grid.Column="3" Content="Run" MinWidth="64" Margin="12,0,0,0" VerticalAlignment="Center"
+                                            Visibility="{Binding IsAction, Converter={StaticResource Visible}}"
+                                            Command="{Binding DataContext.RunActionCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                            CommandParameter="{Binding}"/>
                                 </Grid>
                             </DataTemplate>
 

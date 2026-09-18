@@ -28,7 +28,6 @@ namespace SweepV.Core.Cleanup
             Description = "Removes superseded component versions and cached data left by updates, using DISM. Safe, but can take 10+ minutes. Note: Explorer shows WinSxS as much larger than it is, because most of it is shared with Windows itself.",
             Category = CleanupCategories.SystemActions,
             Kind = CleanupKind.Command,
-            IsRecommended = true,
             RequiresAdmin = true,
             Inspect = ct =>
             {
@@ -183,7 +182,6 @@ namespace SweepV.Core.Cleanup
             Description = "Linux (WSL) and Docker Desktop disks grow but never shrink. This shuts down WSL and compacts them to release unused space. Quit Docker Desktop first; run 'docker system prune' before for bigger savings.",
             Category = CleanupCategories.SystemActions,
             Kind = CleanupKind.Command,
-            IsRecommended = true,
             RequiresAdmin = true,
             Inspect = _ =>
             {
