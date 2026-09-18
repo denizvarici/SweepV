@@ -96,15 +96,19 @@ namespace SweepV.App.ViewModels
         public ICollectionView ItemsView { get; }
 
         [ObservableProperty]
-        [NotifyCanExecuteChangedFor(nameof(CleanCommand), nameof(AnalyzeCommand))]
-        private bool _isBusy;
-
-        [ObservableProperty]
         private string _statusMessage = "Calculating…";
 
-        /// <summary>True while a measurement pass is running.</summary>
+        /// <summary>True while a measurement pass is running. Cleaning is still allowed meanwhile.</summary>
         [ObservableProperty]
+        [NotifyCanExecuteChangedFor(nameof(AnalyzeCommand))]
         private bool _isMeasuring = true;
+
+        [ObservableProperty]
+        [NotifyCanExecuteChangedFor(nameof(CleanCommand), nameof(AnalyzeCommand))]
+        private bool _isCleaning;
+
+        /// <summary>Items being cleaned right now; a measurement finishing must not overwrite their state.</summary>
+        private readonly HashSet<CleanupItemViewModel> _cleaningItems = [];
 
         // Totals are kept incrementally (O(1) per change) instead of re-summing every item on each update.
         private long _totalBytes;
@@ -215,6 +219,10 @@ namespace SweepV.App.ViewModels
                 var visibilityChanged = false;
                 while (results.TryDequeue(out var result))
                 {
+                    // A stale size would overwrite the "Cleaning…" status and the fresh result.
+                    if (_cleaningItems.Contains(result.Item))
+                        continue;
+
                     var wasVisible = result.Item.IsApplicable;
                     result.Item.Inspection = result.Inspection;
                     if (!result.Inspection.IsApplicable)
@@ -225,12 +233,14 @@ namespace SweepV.App.ViewModels
             });
         }
 
-        private bool CanRun() => !IsBusy;
+        private bool CanAnalyze() => !IsMeasuring && !IsCleaning;
 
-        [RelayCommand(CanExecute = nameof(CanRun))]
+        /// <summary>Cleaning may start while sizes are still being calculated.</summary>
+        private bool CanClean() => !IsCleaning;
+
+        [RelayCommand(CanExecute = nameof(CanAnalyze))]
         private async Task AnalyzeAsync()
         {
-            IsBusy = true;
             IsMeasuring = true;
             StatusMessage = "Calculating…";
 
@@ -271,17 +281,25 @@ namespace SweepV.App.ViewModels
             await toggles;
 
             IsMeasuring = false;
-            StatusMessage = "Select the locations you want to clean.";
-            IsBusy = false;
+            if (!IsCleaning)
+                StatusMessage = "Select the locations you want to clean.";
         }
 
-        [RelayCommand(CanExecute = nameof(CanRun))]
+        [RelayCommand(CanExecute = nameof(CanClean))]
         private async Task CleanAsync()
         {
             var selected = Items.Where(i => i.IsSelected && i.IsApplicable).ToList();
             if (selected.Count == 0)
             {
                 StatusMessage = "Nothing selected.";
+                return;
+            }
+
+            // Cleaning something whose size is unknown would report a wrong result, so wait for it.
+            var pending = selected.Where(i => i.Inspection is null).Select(i => i.Target.Name).ToList();
+            if (pending.Count > 0)
+            {
+                StatusMessage = $"Still calculating: {string.Join(", ", pending)}. Wait until they show a size, or untick them.";
                 return;
             }
 
@@ -294,12 +312,13 @@ namespace SweepV.App.ViewModels
             if (!Dialogs.Confirm(prompt + "\n\nContinue?", "Clean selected"))
                 return;
 
-            IsBusy = true;
+            IsCleaning = true;
             long freed = 0;
             var skipped = 0;
             var needAdmin = new List<string>();
             foreach (var item in selected)
             {
+                _cleaningItems.Add(item);
                 item.Status = (item.Target.RemoveFolderWithOwnership || item.Target.Kind == CleanupKind.Command) && !item.NeedsElevation
                     ? "Working… this can take several minutes."
                     : "Cleaning…";
@@ -321,6 +340,7 @@ namespace SweepV.App.ViewModels
                 var inspection = await Task.Run(() => _service.Inspect(item.Target));
                 item.Inspection = inspection;
                 item.IsSelected = false;
+                _cleaningItems.Remove(item);
             }
             // Cleaning can make a location disappear (e.g. Windows.old); update visibility once.
             ItemsView.Refresh();
@@ -328,7 +348,7 @@ namespace SweepV.App.ViewModels
             StatusMessage = $"Done. Freed {GeminiFolderAdvisor.FormatBytes(freed)}." +
                 (skipped > 0 ? $" {skipped} items were in use and skipped." : string.Empty) +
                 (needAdmin.Count > 0 ? $" Needs administrator: {string.Join(", ", needAdmin)}." : string.Empty);
-            IsBusy = false;
+            IsCleaning = false;
         }
     }
 }
